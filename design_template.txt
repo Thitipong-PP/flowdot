@@ -1,0 +1,34 @@
+it is AI Agent bot that will be admin for this LINE official account. so this will be phone view with LINE chat interface and Rich Menu(also text tab for user to type but dont slide the real keyboard up, just show the cursor)
+theme color : similar to https://opentyphoon.ai/
+AI brief overview : SME Finance Copilot (AI Assistant and Accountant) with 3 Core Features 1. Cash-Flow Management & Proactive Alerts (alert ใกล้ถึงวันจ่ายหนี้, เตือนเงินใกล้หมด, เงินสำรองลดลงเยอะๆ (ถ้าใช้เงินแบบนี้ต่อไป เงินหมดแน่) 2.Financing-Option Matching(แนะนำสินเชื่อที่เหมาะกับสภาพการเงินของเรา) 3.Business Financial Analysis (dashboard Financial Health)
+position : track statement and recommend สินเชื่อ
+demo has 2 tabs which will switch using segmented switch in the middle top of website
+tab1 is "User view"
+split to 2 section (left and right) do not add line to split it. just set the context in middle of each section (padding)
+left section is mock up LINE chat interface in phone shape. show only in chat, no switch to other LINE interface.
+1. first time
+- AI sent message Hello and tell user to click "LogIn/LogOut" in Rich Menu to register
+2. chat mode 
+- AI act as normal LLM that will answer user question
+- if user send(upload) image, so image like how it shows in normal LINE user side.
+(fyi : in background, image will be sent to OCR. 
+if AI return "is_receipt" : True (AI found that this image is receipt) and come with receipt info that is transcribed and filled in template, send that template to user and show 2 button "Confirm" and "Edit". if user click "Confirm", auto user send message "Confirmed!" (like when we click Rich menu and the text is auto send), after that, send that info to user DB. if user click "Edit", auto user send message "Edit" , AI ask "What do you want to change and change to what?" (rewrite this, make it appropriate) , after user answer the question, refill the template and send to user again. redo this process until user click "Confirm"
+if AI return "is_receipt" : False (AI found that this image isnt receipt) AI will think it is context for previous message and will answer user like normal conversation.
+
+just fyi, the result will be decided and designed by AI Agent)
+
+right section show real time how it works in background. but idk how to visualize it. use AI Arch as Admin tab and make AI Agent block that being used to glow up and when main AI Agent choose the agent to use, show the reason why it choose this model
+
+3. 5 Rich Menu
+- LogIn/LogOut : popup website (like when we click link in LINE and it show the preview). it is normal login interface (username - password) with No account? Register. when click Register , show normal create account form (name, surname, email, tel,etc) and click next. after that, ask for this info REF1(i add it at the bottom of this prompt
+- Manage Account : pop up wbsite. allow user to edit info from when they registered
+- แนะนำสินเชื่อ (rewrite this menu name in English) : auto user send message "Recommend some สินเชื่อ that is suitable for me" -> AI answer in side slide box(imagine when multiple picture show in LINE). design how each box should look like.
+- Dashboard : auto user send message "Show my Financial Health." -> AI return graph, last 30 day expense, financial health (in percent) and "see more" button. after click "see more", show pop up website (just blank website for now)
+- Contact Support :  auto user send message "I want to contact Admin." -> AI answer "what seem to be the problem?"(rewrite this, make it more polite) -> after user reply, AI answer "Note that! I will call Admin as soon as possible"
+
+
+tab2 is "Admin view"
+- 3 section - design the layout by yourself
+1. user issue : user who report from Rich Menu. show user ID, what is the problem user tell about(the text user reply), button "view user info(choose some icon for this)", "icon chat bubble", "icon correct tick" (if click this, show pop up to ask for confirm)
+2. user management : to edit info, delete account, join chat, add badge warning time (add manually for suspicious user who admin already warn them)
+3. AI status : show AI Agent architecture (1 agent as center, 5 agents around it). if json status health check of that Agent is True, that Agent block is Green. if False, turn Red
