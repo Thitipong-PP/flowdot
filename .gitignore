@@ -5,6 +5,8 @@ out/
 dist/
 coverage/
 backend/.data/
+AI/.data/
+AI/uploads/
 .env
 .env.*
 !.env.example

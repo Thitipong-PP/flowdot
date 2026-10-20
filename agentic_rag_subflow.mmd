@@ -1,0 +1,49 @@
+flowchart TD
+    %% Input
+    START(["📥 Financial Profile & Deficit Context<br/>(ยอดขาดดุล, รายได้ต่อเดือน, อายุธุรกิจ, DSCR, สถานะหลักทรัพย์)"])
+    START --> STAGE1
+
+    %% Stage 1
+    subgraph S1 ["Stage 1: Pre-Retrieval Context Synthesis"]
+        STAGE1["📝 Context-Augmented Query Synthesis<br/>(สร้าง Semantic Natural Description ร้อยเรียงตัวเลขจริง<br/>ไร้ Hardcode if/elif)"]
+    end
+
+    %% Stage 2
+    STAGE1 -->|"e5-small: 'query: ...'"| STAGE2
+    subgraph S2 ["Stage 2: Dual-Mode In-Memory Hybrid Search"]
+        STAGE2["📡 Reciprocal Rank Fusion (RRF)<br/>K = 60 | Latency < 20ms"]
+        STAGE2 --> FAISS["🔹 Dense Retrieval: FAISS (IndexFlatIP)<br/>Cosine Similarity บน Vector 384 มิติ"]
+        STAGE2 --> BM25["🔸 Sparse Retrieval: BM25Okapi<br/>Tokenize ภาษาไทย + Contextual Summary"]
+        FAISS & BM25 --> MERGE["🔄 รวมคะแนน RRF Score<br/>ได้ Raw Loan Candidates (Top 5-10)"]
+    end
+
+    %% Stage 3
+    MERGE --> STAGE3
+    subgraph S3 ["Stage 3: Deterministic Underwriting Guard"]
+        STAGE3["⚖️ Pure Python Grader (เกณฑ์พิจารณาสินเชื่อจริง)<br/>- รายได้ขั้นต่ำ (Min Monthly Revenue)<br/>- อายุธุรกิจขั้นต่ำ (Min Business Age)<br/>- วงเงินกู้สูงสุด (Max Loan Limit)<br/>- ภาระหนี้ (DSCR Check)<br/>- หลักทรัพย์ค้ำประกัน (Collateral Required)"]
+    end
+
+    %% Evaluation & Stage 4 CRAG Loop
+    STAGE3 --> CHECK{"มีสินเชื่อผ่านเกณฑ์<br/>อย่างน้อย 1 รายการหรือไม่?"}
+
+    CHECK -- "มี (Passed Candidates >= 1)" --> STAGE5
+
+    CHECK -- "ไม่มี (ตกเกณฑ์ทั้งหมด)" --> CRAG_EVAL{"วิเคราะห์สาเหตุตกเกณฑ์<br/>(Rejection Reason)"}
+
+    subgraph S4 ["Stage 4: CRAG Self-Correction Recovery Loop"]
+        CRAG_EVAL -- "ตกเพราะไม่มีหลักทรัพย์<br/>(แต่รายได้และอายุธุรกิจผ่าน)" --> REWRITE["🔄 Query Rewriter Loop<br/>สั่งดึงสินเชื่อกลุ่ม 'Clean Loan' / 'บสย. ค้ำประกัน PGS'"]
+        REWRITE -->|"ค้นหาซ้ำรอบสอง"| STAGE2
+
+        CRAG_EVAL -- "ตกเกณฑ์ขั้นต่ำอื่นๆ<br/>(เช่น อายุธุรกิจไม่ถึง 6 ด. หรือรายได้ไม่พอ)" --> DIAGNOSTIC["📊 Actionable Improvement Diagnostics<br/>(ไม่ฝืนแนะนำสินเชื่อที่ตกเกณฑ์เด็ดขาด<br/>แต่สร้างแนวทางแก้ไขตัวเลขให้ยื่นผ่านในอนาคต)"]
+    end
+
+    %% Stage 5
+    subgraph S5 ["Stage 5: Live Synthesis & Recommendation"]
+        STAGE5["🎯 Live Ollama Synthesis (Qwen 1.7B)<br/>- สรุป Rationale ให้ตรงกับสถานะธุรกิจจริง<br/>- กำหนด max_tokens=150 ป้องกันอาการหน่วง<br/>- สร้าง Checklist เอกสารที่ต้องใช้ยื่นกู้"]
+    end
+
+    DIAGNOSTIC --> FINAL_OUT
+    STAGE5 --> FINAL_OUT
+
+    %% Output
+    FINAL_OUT(["📤 ผลลัพธ์ส่งกลับ Master Orchestrator<br/>(นำไปประกอบเป็น LINE Flex Carousel หรือคำแนะนำแผนการเงิน)"])

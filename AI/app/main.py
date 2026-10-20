@@ -2,7 +2,12 @@ import os
 import time
 import uuid
 import base64
-import shutil
+import logging
+import json
+import hmac
+import re
+from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from contextlib import asynccontextmanager
 import httpx
@@ -100,6 +105,82 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Request audit logs intentionally exclude request/response bodies, headers, query
+# values, user IDs, and file names because they may contain PII or secrets.
+_audit_logger = logging.getLogger("flowdot.audit")
+_audit_logger.setLevel(logging.INFO)
+if not _audit_logger.handlers:
+    _audit_logger.addHandler(logging.StreamHandler())
+    _audit_dir = Path(__file__).resolve().parents[1] / ".data" / "logs"
+    _audit_dir.mkdir(parents=True, exist_ok=True)
+    _audit_logger.addHandler(RotatingFileHandler(_audit_dir / "http-audit.jsonl", maxBytes=10_000_000, backupCount=7, encoding="utf-8"))
+
+
+@app.middleware("http")
+async def request_audit_and_access_control(request: Request, call_next):
+    started = time.perf_counter()
+    supplied_request_id = request.headers.get("x-request-id", "")
+    request_id = supplied_request_id if len(supplied_request_id) <= 64 and re.fullmatch(r"[A-Za-z0-9._-]+", supplied_request_id) else uuid.uuid4().hex
+    request.state.request_id = request_id
+    status_code = 500
+    path = request.url.path
+    protected = path.startswith("/api/v1/")
+    if protected:
+        supplied = request.headers.get("authorization", "")
+        token = settings.AI_SERVICE_TOKEN
+        peer = request.client.host if request.client else ""
+        is_loopback = peer in {"127.0.0.1", "::1", "localhost", "testclient"}
+        if token:
+            if len(token) < 32 or not supplied.startswith("Bearer ") or not hmac.compare_digest(supplied[7:], token):
+                status_code = 401
+                response = JSONResponse(status_code=status_code, content={"detail": "Unauthorized", "request_id": request_id})
+                response.headers["X-Request-ID"] = request_id
+                _log_http(request, status_code, started, request_id)
+                return response
+        elif not settings.DEBUG or not is_loopback:
+            status_code = 503 if not settings.DEBUG else 401
+            response = JSONResponse(status_code=status_code, content={"detail": "AI service authentication is not configured", "request_id": request_id})
+            response.headers["X-Request-ID"] = request_id
+            _log_http(request, status_code, started, request_id)
+            return response
+        content_length = request.headers.get("content-length")
+        if content_length and (not content_length.isdigit() or len(content_length) > 12 or int(content_length) > (settings.MAX_UPLOAD_BYTES * 2 + 1_048_576)):
+            status_code = 413
+            response = JSONResponse(status_code=status_code, content={"detail": "Request exceeds size limit", "request_id": request_id})
+            response.headers["X-Request-ID"] = request_id
+            _log_http(request, status_code, started, request_id)
+            return response
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        response.headers["X-Request-ID"] = request_id
+        return response
+    except Exception:
+        _audit_logger.error(json.dumps({"timestamp": datetime.now(timezone.utc).isoformat(), "request_id": request_id, "event": "http_request_failed", "path": path}))
+        raise
+    finally:
+        _log_http(request, status_code, started, request_id)
+
+
+def _log_http(request: Request, status_code: int, started: float, request_id: str) -> None:
+    _audit_logger.info(json.dumps({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "request_id": request_id,
+        "event": "http_request_completed",
+        "method": request.method,
+        "path": request.url.path,
+        "status_code": status_code,
+        "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+    }, separators=(",", ":")))
+
+
+def _is_supported_upload(data: bytes) -> bool:
+    return (
+        data.startswith(b"\x89PNG\r\n\x1a\n")
+        or data.startswith(b"\xff\xd8\xff")
+        or (data.startswith(b"RIFF") and data[8:12] == b"WEBP")
+    )
+
 # Initialize core routers and orchestrator (100% Real Production Execution)
 fast_path_router = FastPathRouter()
 orchestrator = MasterOrchestrator(mock_mode=False)
@@ -139,7 +220,8 @@ async def ingress(request: Request):
     """
     payload = await request.json()
     user_id = payload.get("user_id", "default_user")
-    content = payload.get("content", "")
+    content = mask_pii(str(payload.get("content", "")))
+    payload["content"] = content
 
     # Fast-Path Check via Two-Tier Router
     is_fast, fast_path_res = await fast_path_router.evaluate_fast_path(content)
@@ -152,16 +234,23 @@ async def ingress(request: Request):
         os.makedirs(uploads_dir, exist_ok=True)
         img_b64 = payload["image_base64"]
         clean_b64 = img_b64.split(",", 1)[1] if "," in img_b64 else img_b64
-        fname = payload.get("file_name", "upload.png")
-        safe_fname = f"{user_id}_{int(time.time())}_{uuid.uuid4().hex[:6]}_{os.path.basename(fname)}"
+        try:
+            decoded = base64.b64decode(clean_b64, validate=True)
+        except (ValueError, base64.binascii.Error):
+            return JSONResponse(status_code=400, content={"detail": "Invalid image upload"})
+        if len(decoded) > settings.MAX_UPLOAD_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Upload exceeds size limit"})
+        if not _is_supported_upload(decoded):
+            return JSONResponse(status_code=415, content={"detail": "Unsupported image format"})
+        safe_fname = f"{uuid.uuid4().hex}.upload"
         saved_img_path = os.path.join(uploads_dir, safe_fname)
         try:
             with open(saved_img_path, "wb") as f_img:
-                f_img.write(base64.b64decode(clean_b64))
+                f_img.write(decoded)
             payload["file_path"] = saved_img_path
             payload.pop("image_base64", None)
-        except Exception as e:
-            print(f"Error saving ingress base64: {e}")
+        except Exception:
+            return JSONResponse(status_code=400, content={"detail": "Invalid image upload"})
 
     # Enqueue to Debounce Buffer
     await debouncer.add_event(user_id, payload)
@@ -178,22 +267,34 @@ async def upload_document(
     caption: str = Form("")
 ):
     """
-    Receives financial document image (PNG/JPG/PDF) via multipart/form-data.
-    Saves file to uploads/ directory and enqueues event with real absolute file_path into Debouncer.
+    Receives a PNG/JPEG/WebP financial document image via multipart/form-data.
+    Saves it under a generated name and enqueues it for the debounced pipeline.
     """
     uploads_dir = os.path.abspath("uploads")
     os.makedirs(uploads_dir, exist_ok=True)
 
-    safe_filename = f"{user_id}_{int(time.time())}_{uuid.uuid4().hex[:6]}_{os.path.basename(file.filename)}"
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        return JSONResponse(status_code=415, content={"detail": "Unsupported file type"})
+    safe_filename = f"{uuid.uuid4().hex}.upload"
     saved_path = os.path.join(uploads_dir, safe_filename)
 
+    size = 0
     with open(saved_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        while chunk := file.file.read(1024 * 1024):
+            size += len(chunk)
+            if size > settings.MAX_UPLOAD_BYTES:
+                os.remove(saved_path)
+                return JSONResponse(status_code=413, content={"detail": "Upload exceeds size limit"})
+            buffer.write(chunk)
+    with open(saved_path, "rb") as uploaded:
+        if not _is_supported_upload(uploaded.read(12)):
+            os.remove(saved_path)
+            return JSONResponse(status_code=415, content={"detail": "Unsupported image format"})
 
     image_event = {
         "user_id": user_id,
         "type": "image",
-        "file_name": file.filename,
+        "file_name": safe_filename,
         "file_path": saved_path
     }
     await debouncer.add_event(user_id, image_event)
@@ -211,7 +312,6 @@ async def upload_document(
         content={
             "status": "buffered",
             "saved_file": safe_filename,
-            "file_path": saved_path,
             "wait_seconds": settings.DEBOUNCE_WAIT_SECONDS
         }
     )
@@ -264,9 +364,8 @@ async def chat_direct(request: Request):
     """
     payload = await request.json()
     user_id = payload.get("user_id", "default_user")
-    content = payload.get("content", "")
+    content = mask_pii(str(payload.get("content", "")))
     image_base64 = payload.get("image_base64")
-    file_name = payload.get("file_name", "uploaded_image.png")
 
     # 1. Fast-Path Check
     if content:
@@ -277,22 +376,26 @@ async def chat_direct(request: Request):
     # 2. Build inputs
     inputs = []
     if content:
-        masked_text = mask_pii(content)
-        inputs.append({"type": "text", "content": masked_text})
+        inputs.append({"type": "text", "content": content})
 
     # Handle image base64 decode if present
     if image_base64:
         uploads_dir = os.path.join(os.getcwd(), "uploads")
         os.makedirs(uploads_dir, exist_ok=True)
         clean_base64 = image_base64.split(",", 1)[1] if "," in image_base64 else image_base64
-        safe_name = f"{uuid.uuid4().hex[:8]}_{os.path.basename(file_name)}"
+        safe_name = f"{uuid.uuid4().hex}.upload"
         saved_img_path = os.path.join(uploads_dir, safe_name)
         try:
             with open(saved_img_path, "wb") as f_img:
-                f_img.write(base64.b64decode(clean_base64))
+                decoded = base64.b64decode(clean_base64, validate=True)
+                if len(decoded) > settings.MAX_UPLOAD_BYTES:
+                    return JSONResponse(status_code=413, content={"detail": "Upload exceeds size limit"})
+                if not _is_supported_upload(decoded):
+                    return JSONResponse(status_code=415, content={"detail": "Unsupported image format"})
+                f_img.write(decoded)
             inputs.append({"type": "image", "file_path": saved_img_path, "file_name": safe_name})
-        except Exception as e:
-            print(f"Error saving image base64: {e}")
+        except Exception:
+            return JSONResponse(status_code=400, content={"detail": "Invalid image upload"})
 
     if not inputs:
         inputs.append({"type": "text", "content": "ขอตรวจสอบสภาพคล่องทางการเงิน"})

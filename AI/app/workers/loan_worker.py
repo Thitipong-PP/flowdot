@@ -278,9 +278,9 @@ class LoanWorker:
         # STAGE 1: Pre-Retrieval (Query Synthesis)
         # -------------------------------------------------------------
         print("\n🧠 [STAGE 1: PRE-RETRIEVAL] Synthesizing natural semantic context query from financial figures...", flush=True)
-        print(f"   - Financial Metrics: Deficit={deficit:,.0f} THB | Revenue={profile.get('monthly_revenue', 0):,.0f} THB | Age={profile.get('business_age_years', 0):.1f}y | DSCR={ratios.get('dscr', 0):.2f} | Collateral={profile.get('has_collateral', False)}", flush=True)
+        print("   - Financial context prepared for retrieval (values omitted from logs).", flush=True)
         stage1_query = self.stage1_synthesize_query(deficit, ratios, profile)
-        print(f"   - Synthesized Search Query: \"{stage1_query}\"", flush=True)
+        print("   - Synthesized retrieval query prepared (content omitted from logs).", flush=True)
         trace["stage1_query"] = stage1_query
 
         # -------------------------------------------------------------
@@ -401,10 +401,7 @@ class LoanWorker:
         trace["stage5_result_count"] = len(synthesized_results)
 
         print(f"\n📋 [FINAL RESULTS] Loan matching completed ({len(synthesized_results)} products):", flush=True)
-        for idx, res in enumerate(synthesized_results, 1):
-            print(f"   [{idx}] {res['product_name']} [{res['bank']}]", flush=True)
-            print(f"       - ประเภท: {res['type']} | วงเงินสูงสุด: {res['max_limit']:,.0f} THB | โอกาสผ่าน: {res['approval_probability']}%", flush=True)
-            print(f"       - คำแนะนำสดจาก LLM: \"{res['recommendation_rationale']}\"", flush=True)
+        print(f"   Recommendations prepared: {len(synthesized_results)} (customer-specific details omitted from logs).", flush=True)
 
         if return_trace:
             return {"results": synthesized_results, "agentic_trace": trace}

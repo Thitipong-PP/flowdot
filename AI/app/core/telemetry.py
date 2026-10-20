@@ -1,7 +1,18 @@
 import asyncio
 import json
+import logging
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
 from typing import Dict, List, AsyncGenerator
 from app.schemas.events import TelemetryEvent
+
+_activity_logger = logging.getLogger("flowdot.ai_activity")
+if not _activity_logger.handlers:
+    log_dir = Path(__file__).resolve().parents[2] / ".data" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    _activity_logger.addHandler(logging.StreamHandler())
+    _activity_logger.addHandler(RotatingFileHandler(log_dir / "ai-activity.jsonl", maxBytes=10_000_000, backupCount=7, encoding="utf-8"))
+    _activity_logger.setLevel(logging.INFO)
 
 class TelemetryEmitter:
     """
@@ -30,6 +41,17 @@ class TelemetryEmitter:
 
     async def emit(self, event: TelemetryEvent):
         """Broadcasts a TelemetryEvent to all active subscribers of the session."""
+        # Persist operational activity only. Never write model reasoning, user
+        # content, profile data, financial amounts, or result payloads to audit logs.
+        _activity_logger.info(json.dumps({
+            "timestamp": event.timestamp,
+            "event_id": event.event_id,
+            "event": event.event,
+            "active_node": event.active_node.value,
+            "node_status": event.node_status.value,
+            "active_wire": event.active_wire,
+            "latency_ms": event.live_metrics.latency_ms,
+        }, ensure_ascii=False, separators=(",", ":")))
         session_id = event.session_id
         if session_id in self._subscribers:
             for q in list(self._subscribers[session_id]):

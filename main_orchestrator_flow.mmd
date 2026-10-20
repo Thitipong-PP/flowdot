@@ -1,0 +1,37 @@
+flowchart TD
+    %% User Input Layer
+    USER(["👤 ผู้ใช้งาน (LINE OA / Web Client)"])
+    USER -->|"พิมพ์ข้อความ / ส่งภาพสลิป-บิล / กดปุ่ม"| INGRESS["🚪 Ingress Gateway (/api/v1/ingress)"]
+
+    %% Fast Path & Security Layer
+    subgraph INGRESS_LAYER ["🛡️ Ingress & Security Filter Layer"]
+        INGRESS --> FAST_CHECK{"⚡ Fast-Path Router<br/>(Rich Menu / คำสั่งลัด?)"}
+        FAST_CHECK -- "ใช่ (Latency < 2ms)" --> FAST_RESP["🚀 ตอบกลับทันที ไม่ผ่าน LLM<br/>(ส่งลิงก์ Login / เบอร์โทร / FAQ)"]
+        FAST_CHECK -- "ไม่ใช่ (คำถามการเงิน/รูปภาพ)" --> DEBOUNCE["⏱️ Debounce Buffer (3-5 วิ)<br/>+ Per-User Concurrency Lock"]
+        DEBOUNCE --> PII["🔒 Thai PII Anonymizer<br/>(เซ็นเซอร์เลขบัตร ปชช. / บัญชี / เบอร์โทร)"]
+    end
+
+    %% Main Orchestrator Brain
+    PII -->|"Consolidated Multi-Modal Batch"| ORCHESTRATOR["🧠 LLM Master Orchestrator Brain<br/>(Local Ollama: Qwen 4B / ReAct Loop)"]
+
+    %% Real-time Telemetry
+    ORCHESTRATOR -.->|"Broadcast SSE Events สด"| SSE["📡 Telemetry Emitter (SSE Stream)<br/>- Active Node & Thought Log<br/>- Live Wire & Cashflow Metrics"]
+
+    %% Tool Ecosystem
+    subgraph TOOLS_ECOSYSTEM ["🛠️ Master Orchestrator Available Tools & Workers"]
+        ORCHESTRATOR -->|"1. สกัดข้อมูลเอกสาร"| T_VISION["👁️ Tool: run_vision_ocr<br/>(Vision Worker)"]
+        ORCHESTRATOR -->|"2. ตรวจสอบสมการตัวเลข"| T_GUARD["⚖️ Tool: verify_math_sanity<br/>(Invariant Sanity Guard)"]
+        ORCHESTRATOR -->|"3. จำลองกระแสเงินสด"| T_CASH["💰 Tool: check_cashflow_ledger<br/>(Cashflow Simulation Worker)"]
+        ORCHESTRATOR -->|"4. ค้นหาสินเชื่อแก้สภาพคล่อง"| T_RAG["🏦 Tool: match_sme_loans<br/>(5-Stage Agentic RAG Worker)"]
+    end
+
+    %% Internal Worker Details
+    T_VISION --- V_DETAIL["• OpenTyphoon OCR API<br/>• 3-Tier Duplicate Engine<br/>(Hard Dup / Reconcile / Soft Dup)"]
+    T_GUARD --- G_DETAIL["• 100% Pure Python Math<br/>• VAT Inclusive (7/107) / Exclusive (7%)<br/>• หักภาษี ณ ที่จ่าย (WHT)"]
+    T_CASH --- C_DETAIL["• Daily Burn Rate & Runway Days<br/>• Deficit Debt Calculation<br/>• Zero-Division Protection (9999.0 วัน)"]
+    T_RAG --- R_DETAIL["• In-Memory Dual-Mode RRF (FAISS + BM25)<br/>• CRAG Self-Correction Loop<br/>• Underwriting Guard"]
+
+    %% Response Layer
+    TOOLS_ECOSYSTEM -->|"รวบรวมผลลัพธ์และตัวเลขที่ผ่าน Guard"| COMPILER["📝 Response Compiler"]
+    COMPILER -->|"สร้าง Rich Interactive UI"| FLEX["💬 LINE Flex Message Builder<br/>- Receipt Confirmation Bubble<br/>- Liquidity Warning Card (Red)<br/>- Loan Recommendation Carousel"]
+    FLEX --> USER

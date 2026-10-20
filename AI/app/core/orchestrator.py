@@ -434,7 +434,7 @@ class MasterOrchestrator:
             event="THOUGHT_STREAM",
             active_node=ActiveNode.ORCHESTRATOR,
             node_status=NodeStatus.PROCESSING,
-            thought_log=f"Master Brain Planning: {agent_plan.get('thought', 'Coordinating tools')} | Selected tools: {planned_tools}"
+            thought_log=f"Planning complete. Selected steps: {', '.join(planned_tools) if planned_tools else 'No specialist step required.'}"
         ))
 
         # Step 3: Tool Execution -> Vision Worker (100% Real Typhoon OCR from disk without mock fallback)
@@ -480,8 +480,7 @@ class MasterOrchestrator:
                         active_node=ActiveNode.VISION_WORKER,
                         node_status=NodeStatus.SUCCESS,
                         active_wire="VISION_TO_ORCHESTRATOR",
-                        thought_log=f"Typhoon OCR processing completed: {flow_info.get('description', '')} (Type: {doc_type})",
-                        payload=extracted_doc
+                        thought_log=f"Document extraction completed. Classification: {doc_type}.",
                     ))
                 except Exception as e:
                     print(f"Vision tool OCR error: {e}")
@@ -504,14 +503,8 @@ class MasterOrchestrator:
                 active_node=ActiveNode.CASHFLOW_WORKER,
                 node_status=NodeStatus.SUCCESS,
                 active_wire="CASHFLOW_TO_ORCHESTRATOR",
-                thought_log=f"Simulating Cashflow: Projected cash {cash_res['projected_cash']:,.2f} THB (Runway: {cash_res['runway_days']} days)",
-                live_metrics=LiveMetrics(
-                    current_cash=cash_res["current_cash"],
-                    projected_cash=cash_res["projected_cash"],
-                    runway_days=cash_res["runway_days"],
-                    risk_level=cash_res["risk_level"]
-                ),
-                payload=cash_res
+                thought_log="Cashflow simulation completed. Review the result in the response.",
+                live_metrics=LiveMetrics(risk_level=cash_res["risk_level"]),
             ))
 
             # Step 5: Invariant Math Guard
@@ -530,7 +523,7 @@ class MasterOrchestrator:
                     active_node=ActiveNode.SANITY_GUARD,
                     node_status=NodeStatus.ERROR,
                     active_wire="GUARD_TO_ORCHESTRATOR_RETRY",
-                    thought_log=f"Detected arithmetic guard violation: {alignment.feedback_prompt}"
+                    thought_log="Arithmetic guard found a mismatch and requested correction."
                 ))
 
             if doc_type == "bank_statement" and flow_info:
@@ -546,7 +539,7 @@ class MasterOrchestrator:
                         event="GUARD_VIOLATION",
                         active_node=ActiveNode.SANITY_GUARD,
                         node_status=NodeStatus.WARNING,
-                        thought_log=f"Statement math guard check: {stmt_guard.feedback_prompt}"
+                        thought_log="Statement consistency check found a mismatch and requested correction."
                     ))
 
         # Step 6: Tool Execution -> Loan Worker (5-Stage Agentic RAG)
@@ -567,7 +560,7 @@ class MasterOrchestrator:
                 active_node=ActiveNode.LOAN_WORKER,
                 node_status=NodeStatus.PROCESSING,
                 active_wire="ORCHESTRATOR_TO_LOAN_WORKER",
-                thought_log=f"Invoking 5-Stage Agentic RAG for SME liquidity loans (Deficit ref: {deficit:,.2f} THB)..."
+                thought_log="Searching and validating SME financing options through the retrieval pipeline."
             ))
 
             profile = {
@@ -597,7 +590,7 @@ class MasterOrchestrator:
                 node_status=NodeStatus.SUCCESS,
                 active_wire="LOAN_WORKER_TO_ORCHESTRATOR",
                 thought_log=f"Loan RAG matching completed: {len(loan_results)} products found",
-                payload={"loans": loan_results}
+                payload={"loan_count": len(loan_results)}
             ))
 
             if loan_results:
@@ -648,6 +641,8 @@ class MasterOrchestrator:
             active_node=ActiveNode.RESPONSE_COMPILER,
             node_status=NodeStatus.SUCCESS,
             thought_log="Processing completed, returning final response to user",
+            # This is delivered only over the protected SSE endpoint for the
+            # requesting session; TelemetryEmitter persists metadata only.
             payload=payload_data
         ))
 

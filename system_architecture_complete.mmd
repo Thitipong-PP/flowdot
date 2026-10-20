@@ -1,0 +1,53 @@
+flowchart TD
+    %% -------------------------------------------------------------------------
+    %% SECTION 1: INGRESS & SECURITY
+    %% -------------------------------------------------------------------------
+    USER(["👤 ผู้ใช้งาน (LINE OA / Web Client)"])
+    USER -->|"ส่งข้อความ / รูปภาพ / กด Rich Menu"| INGRESS["🚪 Ingress Gateway (/api/v1/ingress)"]
+
+    subgraph INGRESS_LAYER ["🛡️ Ingress & Security Filter Layer"]
+        INGRESS --> FAST_CHECK{"⚡ Fast-Path Router<br/>(Rich Menu / คำสั่งลัด?)"}
+        FAST_CHECK -- "ใช่ (Latency < 2ms)" --> FAST_RESP["🚀 ตอบกลับทันที ไม่ผ่าน LLM<br/>(ลิงก์ Login / เบอร์โทร / FAQ)"]
+        FAST_CHECK -- "ไม่ใช่ (คำถามการเงิน/รูปภาพ)" --> DEBOUNCE["⏱️ Debounce Buffer (3-5 วิ)<br/>+ Per-User Concurrency Lock"]
+        DEBOUNCE --> PII["🔒 Thai PII Anonymizer<br/>(เซ็นเซอร์เลขบัตร ปชช. / บัญชี / เบอร์โทร)"]
+    end
+
+    %% -------------------------------------------------------------------------
+    %% SECTION 2: MASTER ORCHESTRATOR BRAIN
+    %% -------------------------------------------------------------------------
+    PII -->|"Consolidated Multi-Modal Batch"| ORCHESTRATOR["🧠 LLM Master Orchestrator Brain<br/>(Local Ollama: Qwen 4B / ReAct Loop)"]
+
+    ORCHESTRATOR -.->|"Broadcast SSE Events สด"| SSE["📡 Telemetry Emitter (SSE Stream)<br/>- Active Node & Thought Log<br/>- Live Wire & Cashflow Metrics"]
+
+    %% -------------------------------------------------------------------------
+    %% SECTION 3: SATELLITE WORKERS & GUARDS
+    %% -------------------------------------------------------------------------
+    subgraph TOOLS_ECOSYSTEM ["🛠️ Master Orchestrator Tool Ecosystem"]
+        ORCHESTRATOR -->|"1. สกัดข้อมูลเอกสาร"| T_VISION["👁️ Vision Worker<br/>(Typhoon OCR & 3-Tier Duplicates)"]
+        ORCHESTRATOR -->|"2. ตรวจสอบสมการตัวเลข"| T_GUARD["⚖️ Invariant Sanity Guard<br/>(100% Pure Python Math / VAT / WHT)"]
+        ORCHESTRATOR -->|"3. จำลองกระแสเงินสด"| T_CASH["💰 Cashflow Simulation Worker<br/>(Burn Rate, Runway & Zero Division Guard)"]
+        ORCHESTRATOR -->|"4. ค้นหาสินเชื่อแก้สภาพคล่อง"| T_RAG["🏦 5-Stage Financial Agentic RAG Worker<br/>(loan_worker.py)"]
+    end
+
+    %% -------------------------------------------------------------------------
+    %% SECTION 4: 5-STAGE AGENTIC RAG SUB-FLOW
+    %% -------------------------------------------------------------------------
+    subgraph AGENTIC_RAG_PIPELINE ["🔄 5-Stage Financial Agentic RAG Pipeline (Sub-Flow)"]
+        T_RAG --> S1["Stage 1: Context-Augmented Query Synthesis<br/>(สร้าง Semantic Description จากรายได้, หนี้, DSCR, หลักประกัน)"]
+        S1 --> S2["Stage 2: Dual-Mode Hybrid Search (RRF K=60, Latency <20ms)<br/>- Dense: FAISS IndexFlatIP (384-dim e5-small)<br/>- Sparse: BM25Okapi + Contextual Summary"]
+        S2 --> S3["Stage 3: Deterministic Underwriting Guard<br/>(เกณฑ์ขั้นต่ำ: รายได้, อายุธุรกิจ, วงเงินกู้, DSCR, หลักทรัพย์)"]
+        
+        S3 --> CRAG_CHECK{"มีรายการ<br/>ผ่านเกณฑ์?"}
+        CRAG_CHECK -- "ตกเพราะขาดหลักทรัพย์" --> S4_CRAG["Stage 4: CRAG Recovery Loop<br/>(Rewrite Query เจาะจง บสย. PGS / Clean Loan)"]
+        S4_CRAG -->|"ค้นหาซ้ำรอบสอง"| S2
+        CRAG_CHECK -- "ตกเกณฑ์ขั้นต่ำอื่นๆ" --> S4_DIAG["Stage 4: Actionable Diagnostics<br/>(ไม่ฝืนแนะนำสินเชื่อตกเกณฑ์ แต่ให้แผนฟื้นฟู)"]
+        CRAG_CHECK -- "ผ่านเกณฑ์" --> S5["Stage 5: Live Ollama Recommendation<br/>(Qwen 1.7B สังเคราะห์ Rationale + Checklist เอกสาร)"]
+    end
+
+    %% -------------------------------------------------------------------------
+    %% SECTION 5: RESPONSE COMPILATION & UI DISPATCH
+    %% -------------------------------------------------------------------------
+    S4_DIAG & S5 & T_CASH & T_GUARD --> COMPILER["📝 Response Compiler"]
+    COMPILER -->|"สร้าง Rich Interactive UI"| FLEX["💬 LINE Flex Message Builder<br/>- Receipt Confirmation Bubble<br/>- Liquidity Warning Card (Red Alert)<br/>- Loan Recommendation Carousel"]
+    FLEX --> USER
+    FAST_RESP --> USER
