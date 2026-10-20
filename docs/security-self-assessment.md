@@ -1,98 +1,98 @@
 # Security Self-Assessment Report
 
-| รายการ | รายละเอียด |
+| Item | Details |
 | --- | --- |
-| ระบบ | Flowdot — SME Finance Copilot |
-| วันที่ประเมิน | 2026-10-20 |
-| ขอบเขต | Source code และ configuration ของ Next.js frontend, Express API, MongoDB, session authentication, permission tiers, request logging และ LLM gateway |
-| ประเภทการประเมิน | Self-assessment จากการ review โค้ดและ configuration ไม่ใช่ penetration test, independent audit, certification หรือการรับรองความสอดคล้องตามกฎหมาย |
+| System | Flowdot — SME Finance Copilot |
+| Assessment date | 2026-10-20 |
+| Scope | Source code and configuration for the Next.js frontend, Express API, MongoDB, session authentication, permission tiers, request logging, and LLM gateway |
+| Assessment type | Initial source-code and configuration review. This is not a penetration test, independent audit, certification, or legal compliance determination. |
 
 ## 1. Permission-Tier Implementation & Enforcement
 
 ### Permission tiers
 
-| Tier / Principal | สิทธิ์ที่ backend อนุญาต | ข้อจำกัด |
+| Tier / Principal | Permissions enforced by the backend | Restrictions |
 | --- | --- | --- |
-| Anonymous | Health check, ดูผลิตภัณฑ์สินเชื่อที่เปิดใช้งาน, สมัคร customer account และ login | อ่าน/แก้ไขข้อมูลบัญชีหรือข้อมูลลูกค้าไม่ได้ |
-| Customer | อ่าน/แก้ไขโปรไฟล์ตนเอง, ดู dashboard และธุรกรรมของตน, เพิ่มธุรกรรมของตน, สร้าง/ดู ticket ของตน, ขอ financing recommendations จากโปรไฟล์ตน และเรียก assistant | อ่านข้อมูลลูกค้าคนอื่น, ดูธุรกรรมคนอื่น, เปลี่ยน ticket status หรือเปลี่ยน role ไม่ได้ |
-| Admin | ดูรายชื่อลูกค้าและโปรไฟล์ตาม ID, ดู ticket ทั้งหมด และเปลี่ยนสถานะ ticket | ไม่มี endpoint จัดการ role/account, ไม่มี endpoint อ่านหรือแก้ transaction ของลูกค้าใน API ชุดปัจจุบัน |
-| AI assistant (service integration) | ปัจจุบันรับข้อความจากผู้ใช้ที่ login แล้ว ส่งข้อความผ่าน PII masker ไปยัง LLM provider ที่กำหนดด้วย environment variables และส่งข้อความตอบกลับ | ไม่ใช่ user role และไม่มี tool สำหรับเรียก API, query MongoDB, แก้ข้อมูล, ลบบัญชี, อนุมัติสินเชื่อ หรือยกระดับสิทธิ์; ไม่ได้มีสิทธิ์ `admin` |
+| Anonymous | Check service health, view active financing products, register a customer account, and log in | Cannot read or modify account or customer data |
+| Customer | Read and update their own profile; view their own dashboard and transactions; create transactions; create and view their own support tickets; request financing recommendations based on their own profile; use the assistant | Cannot read another customer's data or transactions, change ticket status, or change their role |
+| Admin | View the customer list and individual customer profiles; view all support tickets; change ticket status | No account or role management endpoint; no endpoint in the current API for reading or modifying customer transactions |
+| AI assistant (service integration) | Currently receives messages from authenticated users, passes them through the PII masker, and sends them to the LLM provider configured through environment variables | It is not a user role and has no tools for calling application APIs, querying MongoDB, modifying or deleting records, approving loans, or escalating privileges; it has no `admin` role |
 
-การสมัครผ่าน API สร้างได้เฉพาะ `customer`; บัญชี admin ถูก bootstrap จาก `ADMIN_EMAIL`/`ADMIN_PASSWORD` ใน backend ไม่มีหน้าให้ยกระดับ role ด้วยตนเอง รายละเอียด endpoint แสดงใน [Permission tiers and audit logging](permission-and-audit-logging.md)
+Registration through the API creates only `customer` accounts. Admin accounts are bootstrapped from `ADMIN_EMAIL` and `ADMIN_PASSWORD` by the backend. There is no self-service role elevation. See [Permission tiers and audit logging](permission-and-audit-logging.md) for the endpoint-level mapping.
 
 ### Enforcement
 
-สิทธิ์ถูกควบคุมใน backend code ไม่ได้อาศัยคำสั่งใน AI prompt หรือการซ่อนปุ่มใน frontend: `authenticate` ตรวจ session และสถานะบัญชีจาก MongoDB, `requireRole('admin')` ล็อก endpoint ของ admin ที่ route layer และ controller ใช้ `customerId` จาก session เป็นขอบเขต query ของ customer ข้อมูลธุรกรรม/ticket/dashboard ไม่รับ owner ID จาก client เพื่อเลือกเจ้าของข้อมูล
+Authorization is enforced in backend code, not by prompt instructions or hidden frontend controls. The `authenticate` middleware validates the session and account state against MongoDB. The `requireRole('admin')` middleware protects admin routes. Controllers use the `customerId` from the authenticated session to scope customer queries; transaction, ticket, and dashboard ownership is not selected using a client-supplied owner ID.
 
-AI assistant ปัจจุบันเป็นการส่งข้อความผ่าน gateway เท่านั้น ไม่มี function/tool calling ที่มีสิทธิ์ทำ action ในระบบ Prompt ที่บอกว่า AI “ห้ามลบข้อมูล” ไม่ใช่ security boundary; หากเพิ่ม tools ในอนาคต แต่ละ tool ต้องมี allowlist และเรียก backend authorization เดียวกับ user/API โดยห้ามนำ admin credential หรือ database credential ไปให้ model
+The current assistant is a message-to-LLM gateway and has no function/tool calling that can perform application actions. A system prompt telling the AI not to delete data is not a security boundary. If tools are added later, each tool must be explicitly allowlisted and call the same backend authorization used by application users. Never expose admin or database credentials to the model.
 
 ## 2. Known-Risk List & Controls
 
-ระดับความเสี่ยงเป็นการจัดลำดับเบื้องต้นจากผลกระทบและโค้ดที่ตรวจ ไม่ได้ยืนยันด้วยการโจมตีจริง สถานะ `มีบางส่วน` หมายถึงมี control แต่ยังไม่เพียงพอสำหรับ production
+Risk levels are preliminary assessments based on potential impact and source-code review; they have not been validated through active exploitation. “Partial” means a control exists but is insufficient for production use.
 
-| ID | ความเสี่ยง | ระดับ | Control ที่มีอยู่ | ช่องว่าง/การจัดการที่ต้องทำ |
+| ID | Risk | Severity | Existing controls | Gap / recommended treatment |
 | --- | --- | --- | --- | --- |
-| R-01 | PII masking อาจพลาดชื่อ/ข้อมูลระบุตัวบุคคลในข้อความอิสระก่อนส่งให้ LLM โดยเฉพาะข้อความภาษาไทยหรือรูปแบบที่ไม่ตรง regex | **High** | ทุก provider request ผ่าน `llm-gateway.js` ซึ่งเรียก `maskPii` ก่อนส่ง | Masking เป็น pattern-based และไม่ fail closed เมื่อไม่มั่นใจ; จำกัดข้อมูลด้วย allowlist, ทดสอบข้อมูลไทย, ป้องกัน request เมื่อ sanitizer ล้มเหลว และห้ามใช้ข้อมูลจริงกับ provider ก่อนผ่าน privacy review |
-| R-02 | Mutation request ที่ไม่มี `Origin` ผ่าน origin middleware ได้ อาจลดการป้องกัน CSRF ของ session cookie | **High** | CORS จำกัด allowlisted origin และ cookie ใช้ `SameSite=Lax`; origin ที่มีค่าแต่ไม่อยู่ allowlist ถูกปฏิเสธ | `requireTrustedOrigin` ตรวจเฉพาะกรณี header มีค่า; ปฏิเสธ missing Origin สำหรับ browser mutation หรือเพิ่ม CSRF token พร้อม policy สำหรับ service clients |
-| R-03 | Prompt injection หรือคำแนะนำทางการเงินที่ผิด/ทำให้เข้าใจว่าอนุมัติสินเชื่อแล้ว | **Medium** | ปัจจุบันไม่มี AI tools สำหรับเปลี่ยนแปลงข้อมูล; system instruction ระบุว่าไม่อนุมัติสินเชื่อแทนผู้ให้กู้ | Prompt instruction ไม่ใช่ enforcement และ model อาจให้คำตอบผิด; ต้อง validate output, สื่อสารข้อจำกัด, ทดสอบ adversarial prompts และมี human review สำหรับการตัดสินใจสำคัญ |
-| R-04 | ไม่มี AI step audit log จึงติดตามแต่ละขั้น, provider outcome หรือ retry ไม่ได้ | **Medium** | HTTP request logger เก็บ status, request ID และ duration รวม 200/4xx/5xx/503 | ปัจจุบัน log เป็น `http_request` เท่านั้น; เพิ่ม `ai_run_*`/`ai_step_*` ผ่าน event sink ตาม schema ในเอกสาร logging โดยห้าม log prompt/output ดิบ |
-| R-05 | Rate limiting ใช้ memory ของ process เดียวและไม่กำหนด trusted proxy | **Medium** | Login/register จำกัดจำนวนครั้งในแต่ละ process | Limit รีเซ็ตเมื่อ restart/ไม่แชร์หลาย instance; เปลี่ยนเป็น shared store และกำหนด trusted proxy ให้ตรง deployment |
-| R-06 | Admin อ่านข้อมูลโปรไฟล์ละเอียดและมี role เพียง `customer`/`admin` | **Medium** | Admin route ต้องผ่าน `requireRole`; รายชื่อลูกค้าส่งคืนเฉพาะบาง field | ใช้ least privilege/scoped permission, ลด field ตามหน้าที่, เพิ่ม MFA และ audit การเปิดดูข้อมูลส่วนบุคคล |
-| R-07 | Consent และ compliance requirement อาจไม่ครบตามวัตถุประสงค์/วงจรข้อมูล | **High** | Registration ต้องส่ง `financialDataConsent: true` | มี boolean เดียว ไม่มี purpose/version/timestamp/ช่องทางถอน consent ที่แยกกัน และยังไม่ได้ legal/PDPA review; ออกแบบ consent record, privacy notice, retention/deletion และสิทธิของเจ้าของข้อมูลร่วมกับผู้เชี่ยวชาญ |
-| R-08 | Log local ไม่มี rotation/retention/central alert; การเขียน log เป็น asynchronous | **Medium** | JSONL แยกวัน เก็บสำเร็จ/error status และเขียน stdout/stderr พร้อมไฟล์ | อาจโตไม่จำกัดหรือสูญหายเมื่อ process หยุด; เพิ่ม centralized log collection, retention, access control, alert และทดสอบ log sink failure |
-| R-09 | Seed demo data และ admin bootstrap อาจถูกใช้ผิด environment | **Medium** | ใช้ค่าจาก env และตัวอย่างใน `.env.example` เป็น placeholder; `.env`/runtime logs ถูก ignore จาก Git | ปิด demo seed ใน production, ใช้ secret manager, จำกัด admin bootstrap แบบ one-time และตรวจหาค่า default ก่อน deploy |
-| R-10 | ไม่มี MFA, email verification, password reset หรือ account recovery flow | **Medium** | Password hash ใช้ `scrypt` และ session signed cookie รองรับ revoke ด้วย `sessionVersion` | เพิ่ม recovery/verification/MFA และขั้นตอน session/device administration ก่อนเปิดใช้จริง |
-| R-11 | Log write failure แสดง `error.message` ไป stderr | **Low–Medium** | request record ไม่เก็บ body, cookie หรือ authorization header | Sanitize/allowlist metadata ที่เขียน log และป้องกัน path/credential จากข้อความ error |
-| R-12 | Third-party LLM/data processor อาจมีเงื่อนไขการเก็บ/ใช้ข้อมูลที่ยังไม่ได้อนุมัติ | **High** | LLM endpoint/key/model กำหนดผ่าน environment; ไม่มี config แล้ว API ตอบ 503 | ตรวจ provider terms, data residency, retention, training use, subprocessor และ deletion ก่อนเปิด provider; ใช้เฉพาะข้อมูลที่ได้รับอนุญาต |
+| R-01 | PII masking may miss names or identifiers in free-form text before it is sent to the LLM, particularly Thai text or formats that do not match the regular expressions | **High** | Every provider request passes through `llm-gateway.js`, which calls `maskPii` before sending | Masking is pattern-based and does not fail closed when uncertain. Restrict data with an allowlist, test Thai-language inputs, block provider calls if sanitization fails, and do not use real customer data before privacy review |
+| R-02 | Mutation requests without an `Origin` header pass the origin middleware, weakening CSRF protection for session-cookie requests | **High** | CORS uses an origin allowlist and the session cookie uses `SameSite=Lax`; requests with a disallowed Origin are rejected | `requireTrustedOrigin` checks only when the header exists. Reject missing Origin on browser mutations or add a CSRF token, with a separate policy for trusted service clients |
+| R-03 | Prompt injection or inaccurate financial guidance could mislead users into believing that a lender has approved financing | **Medium** | The current assistant has no tools for changing application data; its system instruction says it cannot approve loans on behalf of lenders | Prompt instructions are not enforcement, and model output can still be wrong. Validate output, communicate limitations, test adversarial prompts, and require human review for consequential decisions |
+| R-04 | There are no AI step audit events, so individual steps, provider outcomes, and retries cannot be traced | **Medium** | The HTTP request logger records status, request ID, and duration, including 200, 4xx, 5xx, and 503 responses | Current logs contain only `http_request` events. Add `ai_run_*` and `ai_step_*` events through an event sink using the schema in the logging document; never log raw prompts or outputs |
+| R-05 | Rate limiting uses process-local memory, and trusted proxy behavior is not configured | **Medium** | Login and registration attempts are limited within each process | Limits reset on restart and are not shared across instances. Use a shared store and configure trusted proxies for the deployment |
+| R-06 | Admin can read detailed customer profiles, and the only roles are `customer` and `admin` | **Medium** | Admin routes require `requireRole`; the customer list returns only selected fields | Apply least privilege and scoped permissions, minimize fields by job function, add MFA, and audit access to personal data |
+| R-07 | Consent and compliance controls may not cover distinct purposes or the full data lifecycle | **High** | Registration requires `financialDataConsent: true` | There is one boolean flag, without purpose, notice version, timestamp, or a separate withdrawal mechanism. The system has not had a legal/PDPA review. Design consent records, privacy notices, retention/deletion, and data-subject rights with qualified privacy/legal review |
+| R-08 | Local logs have no rotation, retention policy, or centralized alerting; log writes are asynchronous | **Medium** | Daily JSONL files record successful and failed HTTP responses and are also written to stdout/stderr | Logs may grow without limit or be lost on abrupt process termination. Add centralized collection, retention, access control, alerting, and log-sink failure testing |
+| R-09 | Demo seed data and admin bootstrap could be used in the wrong environment | **Medium** | Values are read from environment variables, `.env.example` uses placeholders, and `.env`/runtime logs are Git-ignored | Disable demo seeding in production, use a secret manager, make admin bootstrap one-time, and reject default/example credentials during deployment |
+| R-10 | MFA, email verification, password reset, and account recovery are not implemented | **Medium** | Passwords use `scrypt`; signed sessions can be revoked through `sessionVersion` | Add recovery, verification, MFA, and session/device administration before production use |
+| R-11 | A log-write failure prints `error.message` to stderr | **Low–Medium** | HTTP request records do not include bodies, cookies, or authorization headers | Sanitize or allowlist logged metadata and prevent paths or credentials from appearing in centralized logs |
+| R-12 | The third-party LLM/data processor may have retention or data-use terms that have not been approved | **High** | LLM endpoint, key, and model are configured through environment variables; without required configuration the API returns 503 | Review provider terms, data residency, retention, training use, subprocessors, and deletion before enabling the provider. Send only approved data |
 
 ## 3. Data Protection & Privacy
 
-ก่อนเรียก LLM, `requestLlmCompletion` ส่ง system/message ผ่าน `maskPii` ซึ่งพยายามแทนอีเมล, หมายเลขโทรศัพท์ไทย, เลขประจำตัว/บัญชีบางรูปแบบ, ที่อยู่บางรูปแบบ และชื่อที่ตรงกับ phrase ที่กำหนดด้วย placeholder จากนั้นจึงสร้าง payload ไปยัง provider โดยตรง อย่างไรก็ตามการตรวจเป็น regex และชื่อ/ข้อมูลในข้อความอิสระอาจหลุดได้ จึงเป็น mitigation เบื้องต้น ไม่ใช่การรับประกันว่า PII ถูกลบทั้งหมด ระบบไม่มี AI step logs สำหรับเก็บ prompt/ผลลัพธ์ และไม่ควรเพิ่มการเก็บเนื้อหาเหล่านั้นลง log
+Before calling an LLM, `requestLlmCompletion` passes the system message and user messages through `maskPii`. The masker attempts to replace email addresses, Thai phone numbers, some national-ID/account-number formats, some address formats, and names that match configured introductory phrases with placeholders. Because this is regular-expression-based, names and other data in free-form messages can be missed. It is a preliminary mitigation, not a guarantee that all PII is removed. The system has no AI step logs for prompts or results, and raw prompt or output content should not be added to logs.
 
-การสมัครบัญชีต้องให้ `financialDataConsent` เป็น `true` แต่ปัจจุบันเป็น consent flag เดียวใน customer profile ไม่ได้แยกวัตถุประสงค์ เช่น การให้บริการ, การแนะนำสินเชื่อ, การส่งข้อมูลให้ LLM, analytics หรือ marketing และยังไม่มี record ของข้อความ/เวอร์ชัน notice, เวลา/ช่องทางยินยอม, การถอนความยินยอม หรือ retention ตามแต่ละ purpose ดังนั้นเอกสารนี้ **ไม่สรุปว่าระบบสอดคล้อง PDPA แล้ว** ต้องกำหนด lawful basis และ consent ที่เหมาะสมแยกตามวัตถุประสงค์พร้อม privacy notice, data minimization, retention/deletion และช่องทางใช้สิทธิ โดยให้ผู้เชี่ยวชาญด้าน privacy/legal ตรวจยืนยันก่อนใช้งานจริง
+Registration requires `financialDataConsent` to be `true`, but this is a single flag on the customer profile. Consent is not separated by purpose, such as service delivery, financing recommendations, sharing data with an LLM, analytics, or marketing. The system also lacks records of the notice text/version, time and method of consent, withdrawal, or purpose-specific retention. Therefore, this report **does not conclude that the system is PDPA-compliant**. Define the lawful basis and appropriate consent by purpose, together with privacy notices, data minimization, retention/deletion, and data-subject request processes, and obtain qualified privacy/legal review before production use.
 
-## Optional sections
+## Optional Sections
 
 ### Overview & Threat Model
 
-ระบบประกอบด้วย Next.js frontend, Express API และ MongoDB; API ใช้ signed cookie session และเรียก LLM provider แบบ OpenAI-compatible เมื่อกำหนดค่า Threat actors ที่พิจารณา: ผู้ไม่ login, customer ที่พยายามอ่านข้อมูลคนอื่น, บัญชี admin ที่ถูกยึด, ผู้โจมตีผ่าน browser/CSRF, prompt injection ในข้อความผู้ใช้, การรั่วไหลผ่าน logs และ third-party provider ที่รับข้อความจาก assistant
+The system consists of a Next.js frontend, an Express API, and MongoDB. The API uses signed cookie sessions and calls an OpenAI-compatible LLM provider when configured. Threat actors considered include unauthenticated users, customers attempting to access other customers' data, compromised admin accounts, browser-based CSRF, prompt injection in user messages, log-based data exposure, and third-party providers receiving assistant messages.
 
-ขอบเขตความเชื่อถือหลักอยู่ที่ backend authorization, database ownership filters, input validation และ LLM gateway/masking boundary การซ่อน UI หรือ system prompt ไม่ถือเป็นขอบเขตความเชื่อถือ การประเมินนี้ไม่ครอบคลุม infrastructure/cloud IAM, production network, MongoDB deployment, backup system หรือผู้ให้บริการที่ยังไม่ได้เลือก
+The primary trust boundaries are backend authorization, database ownership filters, input validation, and the LLM gateway/masking boundary. Hidden UI controls and system prompts are not trust boundaries. This assessment does not cover cloud infrastructure/IAM, production network configuration, MongoDB deployment, backup systems, or a provider that has not yet been selected.
 
 ### Authentication & Secrets Management
 
-- Password ใช้ `scrypt` พร้อม random salt และ constant-time comparison
-- Session เป็น HMAC-SHA256 signed token; ตรวจ account active, role และ `sessionVersion` กับ MongoDB ทุก authenticated request
-- Cookie ตั้ง `HttpOnly`, `SameSite=Lax`; ตั้ง `Secure` เมื่อ `NODE_ENV=production`
-- Backend ปฏิเสธ start เมื่อไม่มี `AUTH_SECRET` หรือสั้นกว่า 32 ตัวอักษร; ค่า admin/demo และ LLM key อ่านจาก environment
-- `.env` และ local logs อยู่ใน `.gitignore`; ไม่พบว่าระบบมี secret manager integration ในโค้ดชุดนี้ ต้องใช้ secret manager ของ deployment และห้ามใช้ demo credential ใน production
+- Passwords use Node.js `scrypt` with a random salt and constant-time comparison.
+- Sessions use HMAC-SHA256-signed tokens. Authenticated requests re-check account status, role, and `sessionVersion` in MongoDB.
+- Cookies use `HttpOnly` and `SameSite=Lax`; `Secure` is enabled when `NODE_ENV=production`.
+- The backend refuses to start if `AUTH_SECRET` is missing or shorter than 32 characters. Admin/demo credentials and the LLM key are read from environment variables.
+- `.env` files and local logs are Git-ignored. No secret-manager integration was found in this codebase; use the deployment's secret manager and never use demo credentials in production.
 
 ### Logging & AI Integration
 
-ปัจจุบัน middleware เก็บ JSONL ต่อ HTTP response รวม `200` โดยมี timestamp, level, event, request ID, method, path, status, duration และ actor role เมื่อยืนยันตัวตนแล้ว ไม่เก็บ body, query, cookie หรือ authorization header ใน request record ไฟล์อยู่ที่ `backend/.data/logs/YYYY-MM-DD.jsonl` และไม่มี rotation/retention อัตโนมัติ
+The current middleware writes one JSONL record for each completed HTTP response, including `200` responses. Records contain a timestamp, level, event, request ID, method, path, status, duration, and actor role when authenticated. Request bodies, query strings, cookies, and authorization headers are not included in the HTTP request record. Files are stored at `backend/.data/logs/YYYY-MM-DD.jsonl`; automatic rotation and retention are not configured.
 
-ยังไม่มี event log สำหรับแต่ละขั้นของ AI; มีเพียง HTTP status ของ assistant request เอกสาร [Permission tiers and audit logging](permission-and-audit-logging.md) ระบุ event schema ที่ทีม AI ควรส่ง (`ai_run_started/completed/failed`, `ai_step_started/completed/failed`) โดยเก็บเฉพาะสถานะ/summary ที่ sanitize แล้ว ห้ามเก็บ raw prompt, model output, chain-of-thought, PII หรือ secret
+There are no per-step AI events yet; only the assistant HTTP status is logged. The [Permission tiers and audit logging](permission-and-audit-logging.md) document defines the proposed `ai_run_started/completed/failed` and `ai_step_started/completed/failed` event schema for integration with the team's AI adapter. Events should contain only sanitized status and summaries. Do not log raw prompts, model output, chain-of-thought, PII, or secrets.
 
 ### Testing Performed
 
-- ตรวจ route/middleware/controller/configuration แบบ source review เพื่อยืนยัน permission tier และขอบเขตข้อมูล
-- ตรวจว่า HTTP logger สร้าง record เมื่อ response จบและรวม status code ที่สำเร็จ/error; ไม่ได้ทำ load test หรือ fault-injection ของ log storage ในการประเมินนี้
-- ตรวจ flow PII masker → LLM gateway จาก source; ไม่ได้ทำ red-team test, coverage test ของ PII patterns หรือทดสอบกับ provider จริง
-- ไม่ได้ทำ penetration test, dependency vulnerability scan, cloud/IAM review, MongoDB backup/restore test หรือ formal PDPA/legal review
-- การตรวจนี้ไม่ใช่หลักฐานว่าไม่มีช่องโหว่; ควรทำ automated security tests และ external review ก่อน production
+- Reviewed routes, middleware, controllers, and configuration to check permission tiers and data scoping.
+- Reviewed the request logger source to confirm it records completed responses, including successful and error status codes. No load test or log-storage fault injection was performed.
+- Reviewed the PII masker-to-LLM gateway path. No red-team test, PII-pattern coverage test, or real-provider test was performed.
+- No penetration test, dependency vulnerability scan, cloud/IAM review, MongoDB backup/restore test, or formal PDPA/legal review was performed.
+- This review is not evidence that the system has no vulnerabilities. Run automated security tests and obtain an external review before production.
 
 ### Third-Party Components & Licenses
 
-Runtime components ที่พบจาก manifests ได้แก่ Next.js, React, Express, Mongoose, MongoDB server image (ใน Compose), Helmet, CORS และ Zod; AI provider เป็น external OpenAI-compatible URL ที่ผู้ deploy กำหนดผ่าน env
+Runtime components identified from the manifests include Next.js, React, Express, Mongoose, the MongoDB server image used by Compose, Helmet, CORS, and Zod. The AI provider is an external OpenAI-compatible endpoint selected by the deployer through environment variables.
 
-ยังไม่ได้ทำ license inventory/SBOM หรือ dependency vulnerability scan สำหรับ transitive dependencies และยังไม่ทราบผู้ให้บริการ/เงื่อนไข LLM ที่จะเลือก ตรวจ `package-lock.json`/container image versions, สร้าง SBOM, สแกน CVE และทบทวน license/provider terms ก่อนปล่อย production
+No license inventory/SBOM or transitive-dependency vulnerability scan has been performed, and the intended LLM provider/terms are not yet known. Before production, review `package-lock.json` and container image versions, generate an SBOM, scan for CVEs, and review licenses and provider terms.
 
-## Recommended actions before production
+## Recommended Actions Before Production
 
-1. ทำ PII/data allowlist สำหรับ LLM และ fail closed เมื่อ masking/validation ไม่ผ่าน
-2. แก้ CSRF/origin validation และทดสอบ mutation ทั้ง browser และ trusted service client
-3. ออกแบบ consent แยกตามวัตถุประสงค์และให้ privacy/legal review; อย่าอ้าง PDPA compliance ก่อนตรวจครบ
-4. เพิ่ม AI step event sink, domain audit trail, central log retention/access control และ alert
-5. เพิ่ม shared rate limiting, trusted proxy config, MFA/least privilege สำหรับ admin และ account recovery
-6. ปิด demo seed/credential ใน production; ใช้ secret manager และตรวจ dependency/license/SBOM
-7. ทำ threat-based security tests, penetration test และทบทวน deployment configuration
+1. Add an LLM data allowlist and fail closed when PII masking or validation fails.
+2. Fix CSRF/origin validation and test mutations from browsers and trusted service clients.
+3. Design purpose-specific consent and obtain privacy/legal review; do not claim PDPA compliance before the review is complete.
+4. Add AI step events, domain audit trails, centralized log retention/access controls, and alerting.
+5. Add shared rate limiting, trusted proxy configuration, admin MFA/least privilege, and account recovery.
+6. Disable demo seeding and credentials in production; use a secret manager and review dependencies/licenses/SBOM.
+7. Perform threat-based security testing, penetration testing, and deployment-specific review.
