@@ -1,79 +1,98 @@
-# Security self-assessment report
+# Security Self-Assessment Report
 
 | รายการ | รายละเอียด |
 | --- | --- |
 | ระบบ | Flowdot — SME Finance Copilot |
 | วันที่ประเมิน | 2026-10-20 |
-| ขอบเขต | ตรวจ source code และ configuration ที่มีใน repository สำหรับ Express API, MongoDB, session authentication, permission tiers, request logging และ AI gateway |
-| ประเภทเอกสาร | self-assessment เบื้องต้น ไม่ใช่ penetration test, audit อิสระ, certification หรือการรับรองความสอดคล้องตามกฎหมาย |
+| ขอบเขต | Source code และ configuration ของ Next.js frontend, Express API, MongoDB, session authentication, permission tiers, request logging และ LLM gateway |
+| ประเภทการประเมิน | Self-assessment จากการ review โค้ดและ configuration ไม่ใช่ penetration test, independent audit, certification หรือการรับรองความสอดคล้องตามกฎหมาย |
 
-## Executive summary
+## 1. Permission-Tier Implementation & Enforcement
 
-ระบบมีพื้นฐานที่ดีสำหรับ development/demo: backend ตรวจ session และ role, จำกัดข้อมูลธุรกรรม/ticket ของ customer ตามเจ้าของ, ใช้ password hashing, signed HttpOnly cookie, input validation, Helmet, CORS allowlist และบันทึก HTTP status รวมถึง `200` ลง JSONL โดยไม่บันทึก body/cookie/auth header ใน request record
+### Permission tiers
 
-ยังไม่ควรนำไปใช้ production กับข้อมูลการเงินจริงโดยไม่มีการแก้ความเสี่ยงระดับสูงสองข้อก่อน:
-
-1. **High — PII masking ไม่ครอบคลุมข้อความอิสระ**: regex อาจพลาดชื่อและข้อมูลระบุตัวตน โดยเฉพาะภาษาไทย/บริบทที่ไม่ได้ตรงรูปแบบ ความเสี่ยงคือข้อมูลจริงถูกส่งให้ LLM provider
-2. **High — mutation request ที่ไม่มี `Origin` ผ่าน origin middleware**: ปัจจุบันปฏิเสธเฉพาะ origin ที่มีค่าแต่ไม่อยู่ allowlist คำขอที่ไม่มี header นี้ผ่านได้ ซึ่งลดประสิทธิภาพของ CSRF defense สำหรับ session cookie
-
-ระดับความเสี่ยงในรายงานนี้เป็นการจัดลำดับเบื้องต้นตามผลกระทบและความเป็นไปได้จากการอ่านโค้ด ไม่ใช่ผลจากการโจมตีจริง
-
-## Permission-tier assessment
-
-| Role | สิทธิ์ที่ยืนยันจาก backend | ข้อจำกัด/ข้อสังเกต |
+| Tier / Principal | สิทธิ์ที่ backend อนุญาต | ข้อจำกัด |
 | --- | --- | --- |
-| Anonymous | Health check, ดูผลิตภัณฑ์สินเชื่อที่ active, register, login | ไม่มีการอ่านข้อมูลลูกค้าหรือข้อมูลบัญชีโดยไม่ login |
-| Customer | session ของตนเอง; อ่าน/แก้ไขโปรไฟล์ตนเอง; ดู dashboard/transactions ของตน; เพิ่มธุรกรรม; สร้างและดู ticket ของตน; ขอ recommendation จากโปรไฟล์ตน; เรียก assistant | ไม่มี transaction administration, อ่าน customer คนอื่น, เปลี่ยน ticket status หรือเปลี่ยน role |
-| Admin | ดูรายชื่อลูกค้า, อ่านโปรไฟล์ตาม ID, ดู ticket ทุกคน, เปลี่ยน ticket status | ไม่มี endpoint สำหรับจัดการบัญชี/role, ไม่มี endpoint สำหรับดูธุรกรรมลูกค้าผ่าน API ชุดนี้; โปรไฟล์ตาม ID เปิดเผยข้อมูลมากกว่ารายการลูกค้า |
+| Anonymous | Health check, ดูผลิตภัณฑ์สินเชื่อที่เปิดใช้งาน, สมัคร customer account และ login | อ่าน/แก้ไขข้อมูลบัญชีหรือข้อมูลลูกค้าไม่ได้ |
+| Customer | อ่าน/แก้ไขโปรไฟล์ตนเอง, ดู dashboard และธุรกรรมของตน, เพิ่มธุรกรรมของตน, สร้าง/ดู ticket ของตน, ขอ financing recommendations จากโปรไฟล์ตน และเรียก assistant | อ่านข้อมูลลูกค้าคนอื่น, ดูธุรกรรมคนอื่น, เปลี่ยน ticket status หรือเปลี่ยน role ไม่ได้ |
+| Admin | ดูรายชื่อลูกค้าและโปรไฟล์ตาม ID, ดู ticket ทั้งหมด และเปลี่ยนสถานะ ticket | ไม่มี endpoint จัดการ role/account, ไม่มี endpoint อ่านหรือแก้ transaction ของลูกค้าใน API ชุดปัจจุบัน |
+| AI assistant (service integration) | ปัจจุบันรับข้อความจากผู้ใช้ที่ login แล้ว ส่งข้อความผ่าน PII masker ไปยัง LLM provider ที่กำหนดด้วย environment variables และส่งข้อความตอบกลับ | ไม่ใช่ user role และไม่มี tool สำหรับเรียก API, query MongoDB, แก้ข้อมูล, ลบบัญชี, อนุมัติสินเชื่อ หรือยกระดับสิทธิ์; ไม่ได้มีสิทธิ์ `admin` |
 
-การบังคับ role อยู่ใน backend middleware `authenticate` และ `requireRole`; การแสดงผลใน UI ไม่ใช่ขอบเขต security เจ้าของข้อมูลใน transaction/ticket/dashboard ใช้ `customerId` จาก session ไม่รับ owner ID จาก client เป็นตัวกำหนด scope
+การสมัครผ่าน API สร้างได้เฉพาะ `customer`; บัญชี admin ถูก bootstrap จาก `ADMIN_EMAIL`/`ADMIN_PASSWORD` ใน backend ไม่มีหน้าให้ยกระดับ role ด้วยตนเอง รายละเอียด endpoint แสดงใน [Permission tiers and audit logging](permission-and-audit-logging.md)
 
-## Controls ที่พบ
+### Enforcement
 
-- Password hash ใช้ Node.js `scrypt` พร้อม salt แบบสุ่ม และเปรียบเทียบ hash ด้วย `timingSafeEqual`.
-- Session เป็น HMAC-signed token; ตรวจบัญชี active, role และ `sessionVersion` กับฐานข้อมูลทุก request ที่ authenticate.
-- Cookie ใช้ `HttpOnly` และ `SameSite=Lax`; ตั้ง `Secure` เมื่อ `NODE_ENV=production`.
-- ตรวจ `AUTH_SECRET` ว่ามีอย่างน้อย 32 ตัวอักษรก่อนเปิด API.
-- API ใช้ Zod validation, ปิด `x-powered-by`, เปิด Helmet และ CORS จำกัด origin ตาม `FRONTEND_ORIGIN`.
-- Request logger เก็บ status ทุก response รวม success `200`, request ID และ duration; request record ไม่มี body, query string, cookie หรือ authorization header.
-- `.env`, log และ `backend/.data` ถูก exclude จาก Git ตาม `.gitignore`; env examples ใช้ placeholder.
-- LLM request ผ่าน gateway กลางและเรียก `maskPii` ก่อนส่ง provider; เมื่อไม่มี endpoint/key ระบบตอบ `503` แทนการสร้างคำตอบจำลอง.
+สิทธิ์ถูกควบคุมใน backend code ไม่ได้อาศัยคำสั่งใน AI prompt หรือการซ่อนปุ่มใน frontend: `authenticate` ตรวจ session และสถานะบัญชีจาก MongoDB, `requireRole('admin')` ล็อก endpoint ของ admin ที่ route layer และ controller ใช้ `customerId` จาก session เป็นขอบเขต query ของ customer ข้อมูลธุรกรรม/ticket/dashboard ไม่รับ owner ID จาก client เพื่อเลือกเจ้าของข้อมูล
 
-## Findings และแผนจัดการความเสี่ยง
+AI assistant ปัจจุบันเป็นการส่งข้อความผ่าน gateway เท่านั้น ไม่มี function/tool calling ที่มีสิทธิ์ทำ action ในระบบ Prompt ที่บอกว่า AI “ห้ามลบข้อมูล” ไม่ใช่ security boundary; หากเพิ่ม tools ในอนาคต แต่ละ tool ต้องมี allowlist และเรียก backend authorization เดียวกับ user/API โดยห้ามนำ admin credential หรือ database credential ไปให้ model
 
-| ID | ระดับ | ความเสี่ยง/หลักฐาน | ผลกระทบ | แนวทางจัดการที่แนะนำ |
+## 2. Known-Risk List & Controls
+
+ระดับความเสี่ยงเป็นการจัดลำดับเบื้องต้นจากผลกระทบและโค้ดที่ตรวจ ไม่ได้ยืนยันด้วยการโจมตีจริง สถานะ `มีบางส่วน` หมายถึงมี control แต่ยังไม่เพียงพอสำหรับ production
+
+| ID | ความเสี่ยง | ระดับ | Control ที่มีอยู่ | ช่องว่าง/การจัดการที่ต้องทำ |
 | --- | --- | --- | --- | --- |
-| SEC-01 | **High** | PII masker ใน `backend/src/services/pii-masker.js` เป็น pattern-based; ชื่อทั่วไป/ภาษาไทย/ข้อมูลอิสระอาจไม่ตรง regex และ gateway ส่งข้อความที่ผ่าน masker ต่อไปยัง provider | PII หรือข้อมูลการเงินอาจออกนอกระบบโดยไม่ตั้งใจ | จำกัดข้อมูลที่ส่ง LLM ด้วย allowlist; แยก structured context จาก free text; ทำ redaction ที่ fail closed เมื่อไม่มั่นใจ; ทดสอบภาษาไทย/รูปแบบหลากหลาย; ไม่ใช้ model กับข้อมูลจริงก่อนผ่าน privacy review และอนุมัติ provider terms |
-| SEC-02 | **High** | `requireTrustedOrigin` ปฏิเสธ origin ที่ไม่อยู่ allowlist เฉพาะเมื่อ header มีค่า; mutation ที่ไม่มี `Origin` ผ่านได้ | ลดการป้องกัน CSRF ต่อ endpoint ที่ใช้ cookie session โดยเฉพาะการเปลี่ยนข้อมูล/สิทธิ์ admin | ปฏิเสธ missing Origin สำหรับ browser mutation หรือใช้ CSRF token ที่ตรวจ server-side; กำหนด policy แยกสำหรับ trusted service clients; ทดสอบ browser และ API clients ก่อนเปิดใช้งาน |
-| SEC-03 | **Medium** | Auth rate limiter ใช้ `Map` ใน process เดียว และ Express ไม่ได้กำหนด trusted proxy | limit ถูก reset เมื่อ restart/ไม่แชร์ระหว่าง replica; หลัง proxy อาจระบุตัว IP ผิด หรือผู้ใช้หลัง proxy ถูกจัดกลุ่มเดียวกัน | ใช้ Redis/shared rate limit store, กำหนด trust proxy เฉพาะจำนวน/เครือข่าย proxy ที่รู้จัก และทดสอบ spoofed `X-Forwarded-For` |
-| SEC-04 | **Medium** | Log เก็บใน local JSONL ไม่มี retention/rotation/central alert; การเขียนไฟล์ทำแบบ asynchronous หลัง response | log อาจโตไม่จำกัด, สูญหายเมื่อ process หยุดฉับพลัน หรือไม่มีสัญญาณเตือนเมื่อ log sink ล้มเหลว | ส่ง structured logs ไป platform กลาง, ตั้ง retention และ access policy, alert เมื่อ 5xx/503 เพิ่มหรือเขียน log ไม่ได้, กำหนด encryption/backup |
-| SEC-05 | **Medium** | Log ปัจจุบันเป็น HTTP request completion เป็นหลัก; ไม่มี domain audit สำหรับ profile/transaction/ticket mutations และยังไม่มี AI step events | ตรวจสอบย้อนหลังว่าใครเปลี่ยน resource หรือ AI ทำขั้นตอนไหน/ได้ผลแบบใดได้ไม่ครบ | เพิ่ม audit event ที่ไม่เก็บ payload และ AI event sink ตาม [permission and audit logging](permission-and-audit-logging.md) ก่อนเชื่อม agent ของทีม |
-| SEC-06 | **Medium** | Admin อ่าน customer profile เต็มตาม ID; role มีเพียง `customer`/`admin`, ไม่มี permission แยกตามงาน | สิทธิ์ admin กว้างและไม่มี separation of duties; credential admin ถูกใช้เพื่ออ่านข้อมูลส่วนบุคคลจำนวนมาก | ใช้ least privilege/permission scopes, MFA/SSO สำหรับ admin, audit การอ่านข้อมูล, จำกัดข้อมูลที่แสดงตามหน้าที่ |
-| SEC-07 | **Medium** | มี demo seed data และ seed script สร้างบัญชี admin/customer จาก env; ไม่พบขั้นตอนบังคับเปลี่ยน credential หรือ disable seed ใน production | อาจเปิด seed/example account หรือข้อมูลตัวอย่างใน environment ผิด | ห้าม seed demo data ใน production; ใช้ secret manager, admin bootstrap แบบ one-time และตรวจไม่ให้ใช้ credential ตัวอย่าง |
-| SEC-08 | **Low–Medium** | Error ตอน log เขียนไม่สำเร็จพิมพ์ `error.message` ไป stderr | ข้อความ filesystem/runtime error อาจเปิดเผย path หรือข้อมูลประกอบที่ไม่ควรอยู่ใน log กลาง | ใช้ error code/type แบบ allowlist, sanitize message และอย่าแนบ connection string/secret |
-| SEC-09 | **Medium** | ยังไม่พบ endpoint สำหรับ MFA, reset password, email verification หรือการจัดการ session/device | บัญชีที่ยึดได้กู้คืน/ควบคุมได้ยาก และยังไม่มีขั้นตอนพิสูจน์เจ้าของบัญชี | เพิ่ม account recovery/verification และ MFA ตาม threat model ก่อนใช้กับลูกค้าจริง |
+| R-01 | PII masking อาจพลาดชื่อ/ข้อมูลระบุตัวบุคคลในข้อความอิสระก่อนส่งให้ LLM โดยเฉพาะข้อความภาษาไทยหรือรูปแบบที่ไม่ตรง regex | **High** | ทุก provider request ผ่าน `llm-gateway.js` ซึ่งเรียก `maskPii` ก่อนส่ง | Masking เป็น pattern-based และไม่ fail closed เมื่อไม่มั่นใจ; จำกัดข้อมูลด้วย allowlist, ทดสอบข้อมูลไทย, ป้องกัน request เมื่อ sanitizer ล้มเหลว และห้ามใช้ข้อมูลจริงกับ provider ก่อนผ่าน privacy review |
+| R-02 | Mutation request ที่ไม่มี `Origin` ผ่าน origin middleware ได้ อาจลดการป้องกัน CSRF ของ session cookie | **High** | CORS จำกัด allowlisted origin และ cookie ใช้ `SameSite=Lax`; origin ที่มีค่าแต่ไม่อยู่ allowlist ถูกปฏิเสธ | `requireTrustedOrigin` ตรวจเฉพาะกรณี header มีค่า; ปฏิเสธ missing Origin สำหรับ browser mutation หรือเพิ่ม CSRF token พร้อม policy สำหรับ service clients |
+| R-03 | Prompt injection หรือคำแนะนำทางการเงินที่ผิด/ทำให้เข้าใจว่าอนุมัติสินเชื่อแล้ว | **Medium** | ปัจจุบันไม่มี AI tools สำหรับเปลี่ยนแปลงข้อมูล; system instruction ระบุว่าไม่อนุมัติสินเชื่อแทนผู้ให้กู้ | Prompt instruction ไม่ใช่ enforcement และ model อาจให้คำตอบผิด; ต้อง validate output, สื่อสารข้อจำกัด, ทดสอบ adversarial prompts และมี human review สำหรับการตัดสินใจสำคัญ |
+| R-04 | ไม่มี AI step audit log จึงติดตามแต่ละขั้น, provider outcome หรือ retry ไม่ได้ | **Medium** | HTTP request logger เก็บ status, request ID และ duration รวม 200/4xx/5xx/503 | ปัจจุบัน log เป็น `http_request` เท่านั้น; เพิ่ม `ai_run_*`/`ai_step_*` ผ่าน event sink ตาม schema ในเอกสาร logging โดยห้าม log prompt/output ดิบ |
+| R-05 | Rate limiting ใช้ memory ของ process เดียวและไม่กำหนด trusted proxy | **Medium** | Login/register จำกัดจำนวนครั้งในแต่ละ process | Limit รีเซ็ตเมื่อ restart/ไม่แชร์หลาย instance; เปลี่ยนเป็น shared store และกำหนด trusted proxy ให้ตรง deployment |
+| R-06 | Admin อ่านข้อมูลโปรไฟล์ละเอียดและมี role เพียง `customer`/`admin` | **Medium** | Admin route ต้องผ่าน `requireRole`; รายชื่อลูกค้าส่งคืนเฉพาะบาง field | ใช้ least privilege/scoped permission, ลด field ตามหน้าที่, เพิ่ม MFA และ audit การเปิดดูข้อมูลส่วนบุคคล |
+| R-07 | Consent และ compliance requirement อาจไม่ครบตามวัตถุประสงค์/วงจรข้อมูล | **High** | Registration ต้องส่ง `financialDataConsent: true` | มี boolean เดียว ไม่มี purpose/version/timestamp/ช่องทางถอน consent ที่แยกกัน และยังไม่ได้ legal/PDPA review; ออกแบบ consent record, privacy notice, retention/deletion และสิทธิของเจ้าของข้อมูลร่วมกับผู้เชี่ยวชาญ |
+| R-08 | Log local ไม่มี rotation/retention/central alert; การเขียน log เป็น asynchronous | **Medium** | JSONL แยกวัน เก็บสำเร็จ/error status และเขียน stdout/stderr พร้อมไฟล์ | อาจโตไม่จำกัดหรือสูญหายเมื่อ process หยุด; เพิ่ม centralized log collection, retention, access control, alert และทดสอบ log sink failure |
+| R-09 | Seed demo data และ admin bootstrap อาจถูกใช้ผิด environment | **Medium** | ใช้ค่าจาก env และตัวอย่างใน `.env.example` เป็น placeholder; `.env`/runtime logs ถูก ignore จาก Git | ปิด demo seed ใน production, ใช้ secret manager, จำกัด admin bootstrap แบบ one-time และตรวจหาค่า default ก่อน deploy |
+| R-10 | ไม่มี MFA, email verification, password reset หรือ account recovery flow | **Medium** | Password hash ใช้ `scrypt` และ session signed cookie รองรับ revoke ด้วย `sessionVersion` | เพิ่ม recovery/verification/MFA และขั้นตอน session/device administration ก่อนเปิดใช้จริง |
+| R-11 | Log write failure แสดง `error.message` ไป stderr | **Low–Medium** | request record ไม่เก็บ body, cookie หรือ authorization header | Sanitize/allowlist metadata ที่เขียน log และป้องกัน path/credential จากข้อความ error |
+| R-12 | Third-party LLM/data processor อาจมีเงื่อนไขการเก็บ/ใช้ข้อมูลที่ยังไม่ได้อนุมัติ | **High** | LLM endpoint/key/model กำหนดผ่าน environment; ไม่มี config แล้ว API ตอบ 503 | ตรวจ provider terms, data residency, retention, training use, subprocessor และ deletion ก่อนเปิด provider; ใช้เฉพาะข้อมูลที่ได้รับอนุญาต |
 
-## AI provider / team integration checklist
+## 3. Data Protection & Privacy
 
-ก่อนต่อ AI orchestration ของทีม:
+ก่อนเรียก LLM, `requestLlmCompletion` ส่ง system/message ผ่าน `maskPii` ซึ่งพยายามแทนอีเมล, หมายเลขโทรศัพท์ไทย, เลขประจำตัว/บัญชีบางรูปแบบ, ที่อยู่บางรูปแบบ และชื่อที่ตรงกับ phrase ที่กำหนดด้วย placeholder จากนั้นจึงสร้าง payload ไปยัง provider โดยตรง อย่างไรก็ตามการตรวจเป็น regex และชื่อ/ข้อมูลในข้อความอิสระอาจหลุดได้ จึงเป็น mitigation เบื้องต้น ไม่ใช่การรับประกันว่า PII ถูกลบทั้งหมด ระบบไม่มี AI step logs สำหรับเก็บ prompt/ผลลัพธ์ และไม่ควรเพิ่มการเก็บเนื้อหาเหล่านั้นลง log
 
-- กำหนด data-flow diagram และระบุ field ที่อนุญาตให้ส่งออกไป provider อย่างชัดเจน
-- ตกลง retention, training usage, region, subprocessors, deletion และ incident terms กับ provider
-- ให้ AI adapter ส่ง event ขั้นตอนผ่าน backend event sink โดยผูก `requestId`/`runId` และส่งเฉพาะ status/result summary ที่ sanitize แล้ว
-- ไม่เก็บ raw prompt, output, chain-of-thought, PII, secrets หรือ provider error body ใน log
-- ตรวจว่า masking สำเร็จก่อนเรียก provider; หาก policy fail หรือ sanitizer ล้มเหลว ต้องไม่ส่ง request ออก
-- ตั้ง timeout, retry limit, payload limit และ provider allowlist; ป้องกัน endpoint URL จากการชี้ไป internal network/metadata service
-- บันทึก model/provider/version และ outcome แบบไม่ระบุตัวบุคคลเพื่อรองรับ incident triage
-- ทดสอบ prompt injection, output validation, provider failure, timeout, retry และข้อมูล PII ภาษาไทย
+การสมัครบัญชีต้องให้ `financialDataConsent` เป็น `true` แต่ปัจจุบันเป็น consent flag เดียวใน customer profile ไม่ได้แยกวัตถุประสงค์ เช่น การให้บริการ, การแนะนำสินเชื่อ, การส่งข้อมูลให้ LLM, analytics หรือ marketing และยังไม่มี record ของข้อความ/เวอร์ชัน notice, เวลา/ช่องทางยินยอม, การถอนความยินยอม หรือ retention ตามแต่ละ purpose ดังนั้นเอกสารนี้ **ไม่สรุปว่าระบบสอดคล้อง PDPA แล้ว** ต้องกำหนด lawful basis และ consent ที่เหมาะสมแยกตามวัตถุประสงค์พร้อม privacy notice, data minimization, retention/deletion และช่องทางใช้สิทธิ โดยให้ผู้เชี่ยวชาญด้าน privacy/legal ตรวจยืนยันก่อนใช้งานจริง
 
-## สถานะการทดสอบและข้อจำกัด
+## Optional sections
 
-เอกสารนี้อ้างอิงจากการ review source/configuration; ไม่ได้ทำ penetration test, dependency vulnerability scan, cloud/IAM review, MongoDB backup/restore test หรือ legal/privacy compliance assessment ข้อความว่า “พบ control” ไม่ได้หมายถึง control นั้นผ่านการทดสอบในทุก deployment
+### Overview & Threat Model
 
-รายการ remediation ที่แนะนำให้ทำก่อน production:
+ระบบประกอบด้วย Next.js frontend, Express API และ MongoDB; API ใช้ signed cookie session และเรียก LLM provider แบบ OpenAI-compatible เมื่อกำหนดค่า Threat actors ที่พิจารณา: ผู้ไม่ login, customer ที่พยายามอ่านข้อมูลคนอื่น, บัญชี admin ที่ถูกยึด, ผู้โจมตีผ่าน browser/CSRF, prompt injection ในข้อความผู้ใช้, การรั่วไหลผ่าน logs และ third-party provider ที่รับข้อความจาก assistant
 
-1. แก้ SEC-01 และ SEC-02 พร้อม regression tests
-2. เปลี่ยน rate limit และทำ trusted proxy policy (SEC-03)
-3. ออกแบบ central logging, audit event และ AI step events พร้อม retention/access control (SEC-04/05)
-4. เพิ่ม MFA/least privilege/admin audit และกระบวนการ bootstrap credential (SEC-06/07/09)
-5. ทำ security test, backup restore test, privacy review และ deployment-specific review ก่อนเปิดให้ผู้ใช้จริง
+ขอบเขตความเชื่อถือหลักอยู่ที่ backend authorization, database ownership filters, input validation และ LLM gateway/masking boundary การซ่อน UI หรือ system prompt ไม่ถือเป็นขอบเขตความเชื่อถือ การประเมินนี้ไม่ครอบคลุม infrastructure/cloud IAM, production network, MongoDB deployment, backup system หรือผู้ให้บริการที่ยังไม่ได้เลือก
+
+### Authentication & Secrets Management
+
+- Password ใช้ `scrypt` พร้อม random salt และ constant-time comparison
+- Session เป็น HMAC-SHA256 signed token; ตรวจ account active, role และ `sessionVersion` กับ MongoDB ทุก authenticated request
+- Cookie ตั้ง `HttpOnly`, `SameSite=Lax`; ตั้ง `Secure` เมื่อ `NODE_ENV=production`
+- Backend ปฏิเสธ start เมื่อไม่มี `AUTH_SECRET` หรือสั้นกว่า 32 ตัวอักษร; ค่า admin/demo และ LLM key อ่านจาก environment
+- `.env` และ local logs อยู่ใน `.gitignore`; ไม่พบว่าระบบมี secret manager integration ในโค้ดชุดนี้ ต้องใช้ secret manager ของ deployment และห้ามใช้ demo credential ใน production
+
+### Logging & AI Integration
+
+ปัจจุบัน middleware เก็บ JSONL ต่อ HTTP response รวม `200` โดยมี timestamp, level, event, request ID, method, path, status, duration และ actor role เมื่อยืนยันตัวตนแล้ว ไม่เก็บ body, query, cookie หรือ authorization header ใน request record ไฟล์อยู่ที่ `backend/.data/logs/YYYY-MM-DD.jsonl` และไม่มี rotation/retention อัตโนมัติ
+
+ยังไม่มี event log สำหรับแต่ละขั้นของ AI; มีเพียง HTTP status ของ assistant request เอกสาร [Permission tiers and audit logging](permission-and-audit-logging.md) ระบุ event schema ที่ทีม AI ควรส่ง (`ai_run_started/completed/failed`, `ai_step_started/completed/failed`) โดยเก็บเฉพาะสถานะ/summary ที่ sanitize แล้ว ห้ามเก็บ raw prompt, model output, chain-of-thought, PII หรือ secret
+
+### Testing Performed
+
+- ตรวจ route/middleware/controller/configuration แบบ source review เพื่อยืนยัน permission tier และขอบเขตข้อมูล
+- ตรวจว่า HTTP logger สร้าง record เมื่อ response จบและรวม status code ที่สำเร็จ/error; ไม่ได้ทำ load test หรือ fault-injection ของ log storage ในการประเมินนี้
+- ตรวจ flow PII masker → LLM gateway จาก source; ไม่ได้ทำ red-team test, coverage test ของ PII patterns หรือทดสอบกับ provider จริง
+- ไม่ได้ทำ penetration test, dependency vulnerability scan, cloud/IAM review, MongoDB backup/restore test หรือ formal PDPA/legal review
+- การตรวจนี้ไม่ใช่หลักฐานว่าไม่มีช่องโหว่; ควรทำ automated security tests และ external review ก่อน production
+
+### Third-Party Components & Licenses
+
+Runtime components ที่พบจาก manifests ได้แก่ Next.js, React, Express, Mongoose, MongoDB server image (ใน Compose), Helmet, CORS และ Zod; AI provider เป็น external OpenAI-compatible URL ที่ผู้ deploy กำหนดผ่าน env
+
+ยังไม่ได้ทำ license inventory/SBOM หรือ dependency vulnerability scan สำหรับ transitive dependencies และยังไม่ทราบผู้ให้บริการ/เงื่อนไข LLM ที่จะเลือก ตรวจ `package-lock.json`/container image versions, สร้าง SBOM, สแกน CVE และทบทวน license/provider terms ก่อนปล่อย production
+
+## Recommended actions before production
+
+1. ทำ PII/data allowlist สำหรับ LLM และ fail closed เมื่อ masking/validation ไม่ผ่าน
+2. แก้ CSRF/origin validation และทดสอบ mutation ทั้ง browser และ trusted service client
+3. ออกแบบ consent แยกตามวัตถุประสงค์และให้ privacy/legal review; อย่าอ้าง PDPA compliance ก่อนตรวจครบ
+4. เพิ่ม AI step event sink, domain audit trail, central log retention/access control และ alert
+5. เพิ่ม shared rate limiting, trusted proxy config, MFA/least privilege สำหรับ admin และ account recovery
+6. ปิด demo seed/credential ใน production; ใช้ secret manager และตรวจ dependency/license/SBOM
+7. ทำ threat-based security tests, penetration test และทบทวน deployment configuration
