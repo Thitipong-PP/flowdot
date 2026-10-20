@@ -5,6 +5,7 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from typing import Dict, List, AsyncGenerator
 from app.schemas.events import TelemetryEvent
+from app.core.request_context import current_request_id
 
 _activity_logger = logging.getLogger("flowdot.ai_activity")
 if not _activity_logger.handlers:
@@ -46,6 +47,7 @@ class TelemetryEmitter:
         _activity_logger.info(json.dumps({
             "timestamp": event.timestamp,
             "event_id": event.event_id,
+            "request_id": current_request_id.get(),
             "event": event.event,
             "active_node": event.active_node.value,
             "node_status": event.node_status.value,

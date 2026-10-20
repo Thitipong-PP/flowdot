@@ -32,7 +32,7 @@ paths:
                     properties:
                       status: { type: string, const: ok }
                       database: { type: string, const: connected }
-                      assistant: { type: string, enum: [configured, not_configured] }
+                      assistant: { type: string, enum: [reachable, unavailable, not_configured] }
         '503': { description: MongoDB is unavailable }
   /api/v1/auth/register:
     post:
@@ -271,8 +271,8 @@ paths:
   /api/v1/assistant/chat:
     post:
       tags: [Assistant]
-      summary: Send a message to the configured OpenAI-compatible model endpoint
-      description: PII masking runs on the backend before a provider request. Returns 503 when LLM_API_URL, LLM_API_KEY, or LLM_MODEL is missing.
+      summary: Send a message to the authenticated AI service
+      description: Requires an authenticated customer profile with financial-data consent. The backend masks text and sends a minimized numeric context from recorded transactions over a server-to-server bearer token. Current cash is null because the ledger has no opening balance; the AI suppresses dependent liquidity/loan calculations. AI credentials are never exposed to the browser. Returns 503 when the AI service is not configured or unavailable.
       security: [{ SessionCookie: [] }]
       requestBody:
         required: true

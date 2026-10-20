@@ -14,4 +14,7 @@ export const env = {
   demoCustomerEmail: process.env.DEMO_CUSTOMER_EMAIL?.toLowerCase(),
   demoCustomerPassword: process.env.DEMO_CUSTOMER_PASSWORD,
   mongoUri: process.env.MONGODB_URI,
+  aiServiceUrl: process.env.AI_SERVICE_URL?.replace(/\/$/, ''),
+  aiServiceToken: process.env.AI_SERVICE_TOKEN,
+  aiServiceTimeoutMs: Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 180000),
 };

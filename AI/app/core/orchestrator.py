@@ -263,8 +263,9 @@ class MasterOrchestrator:
         is_crisis = cash_res.get("is_liquidity_crisis", False)
         has_loans = len(loan_results) > 0
 
+        current_cash_description = f"{profile['current_cash']:,.2f} บาท" if profile.get("current_cash") is not None else "ยังไม่มีข้อมูลยอดเงินคงเหลือที่ยืนยันได้"
         system_prompt = f"""คุณคือ AI CFO คู่คิดทางการเงินประจำกิจการ "{profile['business_name']}"
-- เงินสดสำรองปัจจุบัน: {profile['current_cash']:,.2f} บาท
+- เงินสดสำรองปัจจุบัน: {current_cash_description}
 - หนี้สินรอชำระสิ้นเดือน: {profile['upcoming_debt']:,.2f} บาท
 บุคลิก: มืออาชีพ เป็นมิตร ตรงไปตรงมา ช่วยเหลือ SME อย่างจริงใจ หากผู้ใช้คุยทั่วไป ให้ตอบเป็นธรรมชาติ"""
 
@@ -280,8 +281,16 @@ class MasterOrchestrator:
             user_prompt = f"""คำถามจากเจ้าของธุรกิจ: "{user_text}"
 [ข้อมูลสินเชื่อที่ระบบแมตช์ให้]
 {chr(10).join(loans_summary)}
-คำสั่ง: แนะนำทางเลือกสินเชื่อด้านบนให้กระชับ ชี้จุดเด่น และแจ้งว่าดูรายละเอียดเพิ่มเติมในการ์ดด้านล่างได้"""
+คำสั่ง: แนะนำทางเลือกสินเชื่อด้านบนให้กระชับ ชี้จุดเด่น และสรุปชื่อกับเงื่อนไขจากข้อมูลที่ให้ ห้ามอ้างถึงการ์ดด้านล่าง"""
             target_temp = 0.4
+
+        elif doc_type == "bank_statement" and profile.get("current_cash") is None:
+            user_prompt = f"""รายงาน Statement จากเจ้าของธุรกิจ: "{user_text}"
+[ข้อจำกัดข้อมูล] ระบบยังไม่มียอดเงินตั้งต้นที่ยืนยันได้
+- ยอดเงินเข้าในรายการ: {income:,.2f} บาท
+- ยอดเงินออกในรายการ: {expense:,.2f} บาท
+คำสั่ง: สรุปเฉพาะยอดเงินเข้า/ออกที่ตรวจพบ ห้ามคำนวณยอดคงเหลือหรือ runway และแจ้งว่าต้องมียอดตั้งต้นก่อนวิเคราะห์สภาพคล่อง"""
+            target_temp = 0.2
 
         elif doc_type == "bank_statement":
             user_prompt = f"""รายงาน Statement จากเจ้าของธุรกิจ: "{user_text}"
@@ -292,6 +301,12 @@ class MasterOrchestrator:
 - ระยะเวลาประคองตัว (Runway): {cash_res.get('runway_days', 0)} วัน
 คำสั่ง: สรุปภาพรวมการเดินบัญชี อัปเดตเงินสดคงเหลือและระยะเวลาประคองตัวอย่างชัดเจน"""
             target_temp = 0.3
+
+        elif (has_new_income or has_new_expense) and profile.get("current_cash") is None:
+            user_prompt = f"""ข้อความจากเจ้าของธุรกิจ: "{user_text}"
+[ข้อจำกัดข้อมูล] ระบบยังไม่มียอดเงินตั้งต้น/ยอดเงินปัจจุบันที่ยืนยันได้ จึงคำนวณยอดคงเหลือหรือ runway ไม่ได้
+คำสั่ง: แจ้งข้อจำกัดนี้อย่างชัดเจน ห้ามแต่งยอดเงินคงเหลือหรือประเมินสภาพคล่อง และขอให้ผู้ใช้ระบุยอดเงินปัจจุบันหรือเพิ่มยอดตั้งต้นก่อนวิเคราะห์"""
+            target_temp = 0.2
 
         elif has_new_income:
             user_prompt = f"""คำถาม/เอกสารจากเจ้าของธุรกิจ: "{user_text}"
@@ -319,8 +334,10 @@ class MasterOrchestrator:
             target_temp = 0.6
 
         if self.mock_mode:
+            if profile.get("current_cash") is None and (has_new_income or has_new_expense):
+                return "ยังคำนวณยอดคงเหลือหรือสภาพคล่องไม่ได้ เพราะระบบไม่มียอดเงินตั้งต้นที่ยืนยันได้ กรุณาระบุยอดเงินปัจจุบันก่อนวิเคราะห์ค่ะ"
             if has_loans:
-                return f"คัดสรรสินเชื่อที่เหมาะสมมาให้ {len(loan_results)} รายการค่ะ รายละเอียดตามการ์ดด้านล่างนะคะ"
+                return f"คัดสรรสินเชื่อที่เหมาะสมมาให้ {len(loan_results)} รายการค่ะ กรุณาใช้เมนู Find financing เพื่อดูรายละเอียดและเงื่อนไขของแต่ละผลิตภัณฑ์นะคะ"
             if doc_type == "bank_statement":
                 return f"อัปเดต Statement เรียบร้อยค่ะ เงินเข้า {income:,.2f} บาท เงินออก {expense:,.2f} บาท ยอดคงเหลือ {cash_res.get('projected_cash', 0):,.2f} บาทค่ะ"
             if has_new_income:
@@ -354,8 +371,10 @@ class MasterOrchestrator:
         except Exception as e:
             print(f"Master response synthesis warning: {e}")
 
+        if profile.get("current_cash") is None and (has_new_income or has_new_expense or doc_type == "bank_statement"):
+            return "ระบบสรุปรายการเงินเข้าและออกได้ แต่ยังคำนวณยอดคงเหลือหรือ runway ไม่ได้ เพราะไม่มียอดเงินตั้งต้นที่ยืนยันได้ กรุณาระบุยอดเงินปัจจุบันก่อนวิเคราะห์สภาพคล่องค่ะ"
         if has_loans:
-            return "ระบบคัดเลือกสินเชื่อที่เหมาะสมไว้ให้เรียบร้อยแล้วค่ะ ตรวจสอบได้จากการ์ดด้านล่างนะคะ"
+            return "ระบบคัดเลือกสินเชื่อไว้แล้วค่ะ กรุณาใช้เมนู Find financing เพื่อดูรายละเอียดและเงื่อนไขของแต่ละผลิตภัณฑ์นะคะ"
         if has_new_expense:
             return f"ยอดค่าใช้จ่าย {expense:,.2f} บาท จะทำให้เงินสดสำรองคงเหลือ {cash_res.get('projected_cash', 0):,.2f} บาทค่ะ"
         return f"สวัสดีค่ะ ยินดีดูแลบัญชีและการเงินให้กับ {profile['business_name']} นะคะ"
@@ -363,7 +382,8 @@ class MasterOrchestrator:
     async def process_session(
         self,
         session_id: str,
-        inputs: List[Dict[str, Any]]
+        inputs: List[Dict[str, Any]],
+        profile_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         await self.telemetry.emit(TelemetryEvent(
             session_id=session_id,
@@ -373,8 +393,8 @@ class MasterOrchestrator:
             thought_log="Master Orchestrator Brain is loading business profile..."
         ))
 
-        profile_data = await self.get_user_financial_profile(session_id)
-        current_reserve = profile_data["current_cash"]
+        profile_data = profile_context if profile_context is not None else await self.get_user_financial_profile(session_id)
+        current_reserve = profile_data.get("current_cash")
         upcoming_debt = profile_data["upcoming_debt"]
         daily_burn_rate = profile_data["daily_burn_rate"]
 
@@ -487,7 +507,7 @@ class MasterOrchestrator:
 
         # Step 4: Tool Execution -> Cashflow Simulation
         cash_res = {}
-        if "tool_cashflow" in planned_tools or expense > 0 or income > 0:
+        if current_reserve is not None and ("tool_cashflow" in planned_tools or expense > 0 or income > 0):
             cash_res = self.cashflow_worker.simulate_cashflow(
                 current_cash=current_reserve,
                 new_expense=expense,
@@ -544,7 +564,7 @@ class MasterOrchestrator:
 
         # Step 6: Tool Execution -> Loan Worker (5-Stage Agentic RAG)
         has_liquidity_crisis = cash_res.get("is_liquidity_crisis", False) and cash_res.get("deficit", 0) > 0
-        needs_loan_tool = ("tool_loan_rag" in planned_tools) or (has_liquidity_crisis and expense > 0)
+        needs_loan_tool = current_reserve is not None and (("tool_loan_rag" in planned_tools) or (has_liquidity_crisis and expense > 0))
 
         loan_results = []
         flex_carousel = None

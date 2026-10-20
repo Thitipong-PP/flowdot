@@ -3,7 +3,9 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     APP_NAME: str = "SME Finance Copilot AI Subsystem (Demo Web)"
-    DEBUG: bool = True
+    DEBUG: bool = False
+    AI_SERVICE_TOKEN: str = Field(default="", description="Internal bearer token for trusted backend-to-AI requests")
+    MAX_UPLOAD_BYTES: int = Field(default=10 * 1024 * 1024, ge=1024, le=50 * 1024 * 1024)
     
     # Local Ollama Settings
     OLLAMA_BASE_URL: str = Field(default="http://localhost:11434/v1", description="Ollama OpenAI-compatible URL")

@@ -8,6 +8,9 @@ let server;
 
 try {
   if (!env.authSecret || env.authSecret.length < 32) throw new Error('AUTH_SECRET must contain at least 32 characters.');
+  if (Boolean(env.aiServiceUrl) !== Boolean(env.aiServiceToken)) throw new Error('AI_SERVICE_URL and AI_SERVICE_TOKEN must be configured together.');
+  if (env.aiServiceToken && env.aiServiceToken.length < 32) throw new Error('AI_SERVICE_TOKEN must contain at least 32 characters.');
+  if (!Number.isInteger(env.aiServiceTimeoutMs) || env.aiServiceTimeoutMs < 1000 || env.aiServiceTimeoutMs > 300000) throw new Error('AI_SERVICE_TIMEOUT_MS must be between 1000 and 300000.');
   await connectDatabase();
   if (env.adminEmail && env.adminPassword) {
     await UserAccount.updateOne(

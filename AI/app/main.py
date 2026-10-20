@@ -24,6 +24,9 @@ from app.core.anonymizer import mask_pii
 from app.core.telemetry import telemetry_emitter
 from app.core.orchestrator import MasterOrchestrator
 from app.templates.flex_messages import parse_postback_action
+from app.schemas.chat import AssistantChatRequest
+from app.core.request_context import current_request_id
+from app.schemas.events import ActiveNode, NodeStatus, TelemetryEvent
 
 
 @asynccontextmanager
@@ -355,53 +358,65 @@ async def serve_demo_ui():
 
 
 @app.post("/api/v1/chat")
-async def chat_direct(request: Request):
+async def chat_direct(payload: AssistantChatRequest, request: Request):
     """
     Direct Interactive Chat Endpoint (Zero Debounce Wait):
     - Evaluates Fast-Path first (< 2ms bypass).
-    - Processes uploaded image (base64) or financial text immediately through MasterOrchestrator.
+    - Processes financial text immediately through MasterOrchestrator.
     - Returns complete synthesized response, cashflow metrics, and loan recommendations.
     """
-    payload = await request.json()
-    user_id = payload.get("user_id", "default_user")
-    content = mask_pii(str(payload.get("content", "")))
-    image_base64 = payload.get("image_base64")
+    user_id = payload.user_id
+    content = mask_pii(payload.content)
+    context_token = current_request_id.set(request.state.request_id)
+    try:
+        return await _process_direct_chat(payload, request, user_id, content)
+    finally:
+        current_request_id.reset(context_token)
+
+
+async def _process_direct_chat(payload: AssistantChatRequest, request: Request, user_id: str, content: str):
+
+    if payload.profile_context is None:
+        await telemetry_emitter.emit(TelemetryEvent(
+            session_id=user_id,
+            event="CHAT_REJECTED_NO_PROFILE_CONTEXT",
+            active_node=ActiveNode.INGRESS,
+            node_status=NodeStatus.WARNING,
+            thought_log="AI processing was not started because consented profile context is missing.",
+        ))
+        return JSONResponse(status_code=403, content={"detail": "Consented customer profile context is required."})
 
     # 1. Fast-Path Check
     if content:
         is_fast, fast_path_res = await fast_path_router.evaluate_fast_path(content)
         if is_fast:
-            return JSONResponse(status_code=200, content=fast_path_res)
+            route_title = str(fast_path_res.get("title") or "")
+            route_url = fast_path_res.get("login_url") or fast_path_res.get("settings_url") or fast_path_res.get("help_url")
+            reply_text = f"{route_title}\n{route_url}" if route_url else route_title
+            if fast_path_res.get("phone") or fast_path_res.get("line_oa"):
+                reply_text += f"\nโทร {fast_path_res.get('phone', '—')} · LINE {fast_path_res.get('line_oa', '—')}"
+            if not reply_text:
+                reply_text = "เปิดเมนูที่เลือกให้แล้วค่ะ"
+            await telemetry_emitter.emit(TelemetryEvent(
+                session_id=user_id,
+                event="FAST_PATH_COMPLETED",
+                active_node=ActiveNode.INGRESS,
+                node_status=NodeStatus.SUCCESS,
+                thought_log="Deterministic assistant route completed without financial analysis.",
+            ))
+            return JSONResponse(status_code=200, content={"status": "COMPLETED", "reply_text": reply_text})
 
     # 2. Build inputs
     inputs = []
     if content:
         inputs.append({"type": "text", "content": content})
 
-    # Handle image base64 decode if present
-    if image_base64:
-        uploads_dir = os.path.join(os.getcwd(), "uploads")
-        os.makedirs(uploads_dir, exist_ok=True)
-        clean_base64 = image_base64.split(",", 1)[1] if "," in image_base64 else image_base64
-        safe_name = f"{uuid.uuid4().hex}.upload"
-        saved_img_path = os.path.join(uploads_dir, safe_name)
-        try:
-            with open(saved_img_path, "wb") as f_img:
-                decoded = base64.b64decode(clean_base64, validate=True)
-                if len(decoded) > settings.MAX_UPLOAD_BYTES:
-                    return JSONResponse(status_code=413, content={"detail": "Upload exceeds size limit"})
-                if not _is_supported_upload(decoded):
-                    return JSONResponse(status_code=415, content={"detail": "Unsupported image format"})
-                f_img.write(decoded)
-            inputs.append({"type": "image", "file_path": saved_img_path, "file_name": safe_name})
-        except Exception:
-            return JSONResponse(status_code=400, content={"detail": "Invalid image upload"})
-
     if not inputs:
         inputs.append({"type": "text", "content": "ขอตรวจสอบสภาพคล่องทางการเงิน"})
 
     # 3. Process via MasterOrchestrator
-    result = await orchestrator.process_session(user_id, inputs)
+    profile_context = payload.profile_context.model_dump() if payload.profile_context else None
+    result = await orchestrator.process_session(user_id, inputs, profile_context=profile_context)
     return JSONResponse(status_code=200, content=jsonable_encoder(result))
 
 

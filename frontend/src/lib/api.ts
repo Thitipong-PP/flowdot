@@ -23,10 +23,16 @@ export type SessionAccount = {
   profile: { id: string; firstName: string; lastName: string; phone: string; businessName: string; industry: string } | null;
 };
 
+export type ServiceHealth = {
+  status: string;
+  database: string;
+  assistant: 'reachable' | 'not_configured' | 'unavailable';
+};
+
 export function getServiceHealth() {
   return fetch(`${apiOrigin}/api/health`, { cache: 'no-store' }).then(async (response) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error?.message ?? `Health check failed (${response.status}).`);
-    return result.data as { status: string; database: string; assistant: string };
+    return result.data as ServiceHealth;
   });
 }
