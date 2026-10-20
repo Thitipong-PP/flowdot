@@ -417,7 +417,7 @@ DEFAULT_LOAN_PRODUCTS: List[Dict[str, Any]] = [
         "id": "loan_od_01",
         "bank": "Kasikornbank",
         "product_name": "KBANK SME Quick OD Limit",
-        "content": "Kasikornbank SME Quick OD Limit วงเงินเบิกเกินบัญชีสำหรับเสริมสภาพคล่องฉุกเฉิน หมุนเวียนระยะสั้น จ่ายดอกเบี้ยตามจริงที่ใช้ อัตราดอกเบี้ย MRR + 2.5%",
+        "content": "Kasikornbank SME Quick OD Limit revolving credit for emergency short-term liquidity; interest is charged only on the amount used. Rate MRR + 2.5%",
         "type": "OD",
         "interest_rate": "MRR + 2.5%",
         "max_limit": 5000000.0,
@@ -427,17 +427,17 @@ DEFAULT_LOAN_PRODUCTS: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "ภ.พ.30 ย้อนหลัง 6 เดือน",
-            "Bank Statement ย้อนหลัง 6 เดือน",
-            "หนังสือรับรองบริษัท (อายุไม่เกิน 3 เดือน)"
+            "VAT return (PP.30) for the previous 6 months",
+            "Bank statements for the previous 6 months",
+            "Company affidavit (issued within the last 3 months)"
         ]
     },
     {
         "id": "loan_pgs_02",
         "bank": "SME D Bank",
-        "product_name": "สินเชื่อ บสย. PGS ค้ำประกันเต็มวงเงิน",
-        "content": "SME D Bank สินเชื่อ บสย. PGS โครงการค้ำประกันสินเชื่อเพื่อผู้ประกอบการที่ขาดหลักประกัน Clean Loan รัฐบาลสนับสนุนค่าธรรมเนียมค้ำประกัน",
-        "type": "บสย. PGS",
+        "product_name": "TCG PGS Full-Guarantee Loan",
+        "content": "SME D Bank TCG PGS guarantee program for businesses without collateral; Clean Loan supported by government-funded guarantee fees",
+        "type": "TCG PGS",
         "interest_rate": "MLR - 1.0%",
         "max_limit": 3000000.0,
         "extra_rules": {
@@ -446,18 +446,18 @@ DEFAULT_LOAN_PRODUCTS: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "สำเนาบัตรประชาชนกรรมการผู้มีอำนาจ",
-            "หนังสือยินยอมให้ บสย. ตรวจสอบข้อมูล",
-            "Bank Statement ย้อนหลัง 6 เดือน"
+            "Copy of the authorized director's national ID",
+            "Consent for TCG to verify information",
+            "Bank statements for the previous 6 months"
         ]
     },
     {
         "id": "loan_factoring_03",
         "bank": "Krungsri",
         "product_name": "Krungsri Invoice Factoring Express",
-        "content": "Krungsri Factoring รับซื้อหนี้การค้า เปลี่ยนใบแจ้งหนี้เป็นเงินสดทันที รับเงินล่วงหน้าสูงสุด 85-90% เหมาะสำหรับธุรกิจ B2B ที่รอเก็บเงินลูกค้า",
+        "content": "Krungsri Factoring purchases trade receivables and converts invoices into immediate cash. Advance up to 85–90%; suitable for B2B businesses awaiting customer payment",
         "type": "Factoring",
-        "interest_rate": "6.5% ต่อปี",
+        "interest_rate": "6.5% per year",
         "max_limit": 10000000.0,
         "extra_rules": {
             "min_revenue": 80000.0,
@@ -465,16 +465,16 @@ DEFAULT_LOAN_PRODUCTS: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "สำเนาใบแจ้งหนี้ / ใบกำกับภาษี / ใบส่งของ",
-            "สัญญาการค้ากับคู่ค้า (Trade Contract)",
-            "Bank Statement ย้อนหลัง 3 เดือน"
+            "Copy of invoice / tax invoice / delivery note",
+            "Trade contract with the business partner",
+            "Bank statements for the previous 3 months"
         ]
     },
     {
         "id": "loan_clean_04",
         "bank": "SCB",
-        "product_name": "SCB SME Clean Loan สบายใจ",
-        "content": "SCB สินเชื่อธุรกิจไม่มีหลักทรัพย์ค้ำประกัน Clean Loan ดอกเบี้ยพิเศษ ไม่ต้องใช้ที่ดินหรือเงินฝากค้ำ อนุมัติไวภายใน 3 วันทำการ",
+        "product_name": "SCB SME Clean Loan Peace of Mind",
+        "content": "SCB unsecured business loan with a special interest rate; no land or deposit collateral required; fast approval within 3 business days",
         "type": "Clean Loan",
         "interest_rate": "MRR + 3.0%",
         "max_limit": 2000000.0,
@@ -484,16 +484,16 @@ DEFAULT_LOAN_PRODUCTS: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "งบการเงินย้อนหลัง 1 ปี",
-            "ภ.พ.30 ย้อนหลัง 6 เดือน",
-            "Bank Statement ย้อนหลัง 6 เดือน"
+            "Financial statements for the previous year",
+            "VAT return (PP.30) for the previous 6 months",
+            "Bank statements for the previous 6 months"
         ]
     },
     {
         "id": "loan_secured_05",
         "bank": "Bangkok Bank",
-        "product_name": "BBL บัวหลวงพารวย (ใช้หลักประกัน)",
-        "content": "Bangkok Bank BBL สินเชื่อขยายกิจการ ใช้ที่ดิน อาคารพาณิชย์ หรือสิ่งปลูกสร้างค้ำประกัน ดอกเบี้ยต่ำพิเศษ วงเงินสูงสุด 30 ล้านบาท ผ่อนนานสูงสุด 10 ปี",
+        "product_name": "BBL Bua Luang Prosperity (secured)",
+        "content": "Bangkok Bank BBL business expansion loan secured by land, commercial buildings, or structures; special low interest rate; up to THB 30 million with a repayment term of up to 10 years",
         "type": "Secured Loan",
         "interest_rate": "MRR + 1.25%",
         "max_limit": 30000000.0,
@@ -503,9 +503,9 @@ DEFAULT_LOAN_PRODUCTS: List[Dict[str, Any]] = [
             "requires_collateral": True
         },
         "required_documents": [
-            "โฉนดที่ดิน / สำเนาหลักทรัพย์ค้ำประกัน",
-            "งบการเงินย้อนหลัง 3 ปี",
-            "ภ.พ.30 และ Statement ย้อนหลัง 12 เดือน"
+            "Land title deed / copy of collateral documents",
+            "Financial statements for the previous 3 years",
+            "VAT returns (PP.30) and bank statements for the previous 12 months"
         ]
     }
 ]
@@ -1019,10 +1019,10 @@ from app.db.vector_store import LoanVectorStore
 @pytest.mark.asyncio
 async def test_hybrid_rrf_search():
     store = LoanVectorStore()
-    results = await store.hybrid_search("OD วงเงินเบิกเกินบัญชี บสย", limit=3)
+    results = await store.hybrid_search("OD overdraft facility TCG", limit=3)
     assert len(results) > 0
     types = [p["type"] for p in results]
-    assert any("OD" in t or "บสย" in t for t in types)
+    assert any("OD" in t or "TCG" in t for t in types)
 
 @pytest.mark.asyncio
 async def test_deterministic_grader_filters_ineligible():
@@ -1042,10 +1042,10 @@ async def test_crag_recovery_loop_on_collateral_rejection():
     profile = {"monthly_revenue": 120000.0, "business_age_years": 2.0, "has_collateral": False}
     ratios = {"dscr": 1.5, "dti": 0.2}
     
-    # Trigger matching: should diagnose that collateral is missing and recover with Clean Loan / บสย.
+    # Trigger matching: should diagnose missing collateral and recover with Clean Loan / TCG.
     matches = await worker.match_loans(deficit=50000.0, ratios=ratios, profile=profile)
     assert len(matches) > 0
-    assert any("บสย" in m["product_name"] or "Clean" in m["product_name"] or "OD" in m["product_name"] for m in matches)
+    assert any("TCG" in m["product_name"] or "Clean" in m["product_name"] or "OD" in m["product_name"] for m in matches)
     assert "required_documents" in matches[0]
 ```
 
@@ -1076,11 +1076,11 @@ class LoanWorker:
     # Stage 1: Pre-Retrieval (Context-Augmented Query Formulation)
     def stage1_synthesize_query(self, deficit: float, ratios: Dict[str, float], profile: Dict[str, Any]) -> str:
         has_col = bool(profile.get("has_collateral", False))
-        terms = [f"สินเชื่อ SME เสริมสภาพคล่อง ขาดเงิน {deficit:,.0f} บาท"]
+        terms = [f"SME working-capital financing shortfall of {deficit:,.0f} THB"]
         if not has_col:
-            terms.append("ไม่มีหลักประกัน Clean Loan บสย. PGS ค้ำประกัน")
+            terms.append("unsecured Clean Loan or TCG PGS guarantee")
         else:
-            terms.append("มีหลักทรัพย์ค้ำประกัน อัตราดอกเบี้ยต่ำ")
+            terms.append("collateral is available, with a low interest rate")
         return " ".join(terms)
 
     # Stage 2: Hybrid Retrieval (In-Memory Dense + Sparse with RRF)
@@ -1110,9 +1110,9 @@ class LoanWorker:
     async def stage4_crag_recovery(self, diagnostics: List[tuple[Dict[str, Any], str]], profile: Dict[str, Any], deficit: float) -> List[Dict[str, Any]]:
         rejection_reasons = [reason for _, reason in diagnostics]
         if any("COLLATERAL_REQUIRED" in r for r in rejection_reasons):
-            relaxed_query = "สินเชื่อ บสย. PGS โครงการค้ำประกันเต็มวงเงิน Clean Loan ไม่ใช้หลักประกัน รัฐบาลสนับสนุน"
+            relaxed_query = "TCG PGS full-guarantee program, unsecured Clean Loan, government-supported guarantee"
         else:
-            relaxed_query = f"สินเชื่อช่วยเหลือผู้ประกอบการ SME ขาดสภาพคล่อง {deficit:,.0f} บาท"
+            relaxed_query = f"financing for liquidity-constrained SME businesses: {deficit:,.0f} THB"
 
         re_candidates = await self.vector_store.hybrid_search(relaxed_query, limit=3)
         return [c for c in re_candidates if self.stage3_grade_candidate(c, profile)[0]]
@@ -1127,8 +1127,8 @@ class LoanWorker:
                 **p,
                 "approval_probability": prob,
                 "deficit_covered": deficit,
-                "recommendation_rationale": f"ครอบคลุมยอดขาดสภาพคล่อง {deficit:,.2f} บาท สอดคล้องกับ DSCR {dscr:.2f} เท่า",
-                "required_documents": list(p.get("required_documents") or ["ภ.พ.30 6 เดือน", "Bank Statement 6 เดือน", "สำเนาบัตรประชาชน"]),
+                "recommendation_rationale": f"Covers the liquidity shortfall of {deficit:,.2f} THB and aligns with a DSCR of {dscr:.2f}x",
+                "required_documents": list(p.get("required_documents") or ["VAT returns (PP.30) for 6 months", "Bank statements for 6 months", "Copy of national ID"]),
                 "flex_carousel_ready": True
             })
         return synthesized
@@ -1468,9 +1468,9 @@ def build_receipt_card(receipt_id: str, session_id: str, vendor: str, grand_tota
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
-                    {"type": "text", "text": "ยืนยันข้อมูลใบเสร็จ / บิล", "weight": "bold", "size": "md"},
-                    {"type": "text", "text": f"ร้านค้า: {vendor}", "size": "sm", "color": "#666666"},
-                    {"type": "text", "text": f"ยอดรวมสุทธิ: {grand_total:,.2f} THB", "size": "lg", "weight": "bold", "color": "#0284c7"},
+                    {"type": "text", "text": "Confirm receipt / bill details", "weight": "bold", "size": "md"},
+                    {"type": "text", "text": f"Merchant: {vendor}", "size": "sm", "color": "#666666"},
+                    {"type": "text", "text": f"Net total: {grand_total:,.2f} THB", "size": "lg", "weight": "bold", "color": "#0284c7"},
                     {"type": "text", "text": f"VAT: {vat:,.2f} THB", "size": "xs", "color": "#999999"}
                 ]
             },
@@ -1485,7 +1485,7 @@ def build_receipt_card(receipt_id: str, session_id: str, vendor: str, grand_tota
                         "color": "#10b981",
                         "action": {
                             "type": "postback",
-                            "label": "ยืนยันบันทึก",
+                            "label": "Confirm record",
                             "data": f"action=confirm_receipt&receipt_id={receipt_id}&session_id={session_id}"
                         }
                     },
@@ -1494,7 +1494,7 @@ def build_receipt_card(receipt_id: str, session_id: str, vendor: str, grand_tota
                         "style": "secondary",
                         "action": {
                             "type": "postback",
-                            "label": "แก้ไขข้อมูล",
+                            "label": "Edit details",
                             "data": f"action=edit_receipt&receipt_id={receipt_id}&session_id={session_id}"
                         }
                     }
@@ -1543,7 +1543,7 @@ def test_clean_json_markdown_parser():
 @pytest.mark.asyncio
 async def test_orchestrator_mock_execution():
     orchestrator = MasterOrchestrator(mock_mode=True)
-    res = await orchestrator.process_session("sme_001", [{"type": "text", "content": "อันนี้บิลซ่อม 95,000"}])
+    res = await orchestrator.process_session("sme_001", [{"type": "text", "content": "This is a THB 95,000 repair bill"}])
     assert "reply_text" in res
     assert res["status"] == "COMPLETED"
 ```
@@ -1649,7 +1649,7 @@ class MasterOrchestrator:
 
         return {
             "status": "COMPLETED",
-            "reply_text": f"ตรวจสอบค่าใช้จ่าย 95,000 บาทแล้ว: เงินสดคงเหลือ {cash_res['projected_cash']:,} บาท สภาพคล่องเหลือ {cash_res['runway_days']} วัน (เตือนความเสี่ยงชำระหนี้)",
+            "reply_text": f"Expense of THB 95,000 reviewed: projected cash balance THB {cash_res['projected_cash']:,}; runway {cash_res['runway_days']} days (debt repayment risk warning)",
             "cashflow": cash_res
         }
 ```

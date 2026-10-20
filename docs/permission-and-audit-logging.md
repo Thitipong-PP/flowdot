@@ -1,93 +1,93 @@
-# Permission tiers and audit logging
+# Permission Tiers and Audit Logging
 
-เอกสารนี้อธิบายสิทธิ์ที่โค้ดปัจจุบันบังคับใช้ และรูปแบบ log สำหรับตรวจสอบคำขอและการทำงานของ AI โดยแยกสิ่งที่ระบบทำแล้วออกจากข้อเสนอสำหรับการเชื่อม AI ของทีม
+This document describes the permissions currently enforced by the code and the log format for requests and AI activity. It distinguishes implemented behavior from the proposed integration contract for the team's AI system.
 
-## Permission tiers ที่มีในปัจจุบัน
+## Current permission tiers
 
-ระบบมี role ในบัญชีสองระดับ คือ `customer` และ `admin` การตรวจสิทธิ์ทำที่ backend ทุก request ที่ใช้ session ไม่ควรอาศัยการซ่อนปุ่มหรือหน้าใน frontend เป็นมาตรการควบคุมสิทธิ์
+The application defines two account roles: `customer` and `admin`. The backend checks permissions on every session-authenticated request. Hiding a button or page in the frontend is not an authorization control.
 
-| ความสามารถ | ผู้เยี่ยมชม | Customer | Admin |
+| Capability | Anonymous | Customer | Admin |
 | --- | --- | --- | --- |
-| Health check (`GET /api/health`) | ได้ | ได้ | ได้ |
-| ดูผลิตภัณฑ์สินเชื่อที่เปิดใช้งาน (`GET /api/v1/financing/products`) | ได้ | ได้ | ได้ |
-| สมัครบัญชี (`POST /api/v1/auth/register`) | สร้างบัญชี customer | — | — |
-| เข้าสู่ระบบ | ได้ | ได้ | ได้ |
-| ดู session / ออกจากระบบ | ไม่ได้ | ของตนเอง | ของตนเอง |
-| ดูหรือแก้ไขโปรไฟล์ (`/customers/me`) | ไม่ได้ | ของตนเอง | ไม่มี endpoint สำหรับแก้โปรไฟล์ admin ในขณะนี้ |
-| ดู dashboard / รายการธุรกรรม | ไม่ได้ | ธุรกรรมของตนเอง | ไม่มีสิทธิ์ผ่าน endpoint ปัจจุบัน |
-| เพิ่มธุรกรรม | ไม่ได้ | เพิ่มในบัญชีของตนเอง | ไม่มีสิทธิ์ผ่าน endpoint ปัจจุบัน |
-| ขอคำแนะนำสินเชื่อ | ไม่ได้ | ใช้โปรไฟล์ของตนเอง | ไม่มีสิทธิ์ผ่าน endpoint ปัจจุบัน |
-| สร้าง ticket / ดู ticket | ไม่ได้ | สร้างและดู ticket ของตนเอง | ดู ticket ทั้งหมด |
-| เปลี่ยนสถานะ ticket | ไม่ได้ | ไม่ได้ | ได้ |
-| ดูรายชื่อลูกค้า / ดูโปรไฟล์ลูกค้าตาม ID | ไม่ได้ | ไม่ได้ | ได้ |
-| จัดการ role, ปิดบัญชี, สร้าง admin | ไม่ได้ | ไม่ได้ | ยังไม่มี endpoint สำหรับงานเหล่านี้ |
+| Health check (`GET /api/health`) | Allowed | Allowed | Allowed |
+| View active financing products (`GET /api/v1/financing/products`) | Allowed | Allowed | Allowed |
+| Register (`POST /api/v1/auth/register`) | Creates a customer account | — | — |
+| Sign in | Allowed | Allowed | Allowed |
+| View session / sign out | Not allowed | Own session | Own session |
+| Read or update profile (`/customers/me`) | Not allowed | Own profile | No admin profile endpoint currently exists |
+| View dashboard / transactions | Not allowed | Own transactions | No access through current endpoints |
+| Add a transaction | Not allowed | Own account | No access through current endpoints |
+| Request financing recommendations | Not allowed | Uses own profile | No access through current endpoints |
+| Create / view support tickets | Not allowed | Create and view own tickets | View all tickets |
+| Change ticket status | Not allowed | Not allowed | Allowed |
+| View customer list / profile by ID | Not allowed | Not allowed | Allowed |
+| Manage roles, deactivate accounts, create admins | Not allowed | Not allowed | No endpoints currently exist |
 
-บัญชีที่สมัครผ่าน API จะเป็น `customer` เท่านั้น บัญชี `admin` ถูกสร้างจาก `ADMIN_EMAIL` และ `ADMIN_PASSWORD` ตอน backend เริ่มทำงานครั้งแรก ไม่มีหน้า self-service สำหรับยกระดับ role
+Registration through the API creates only `customer` accounts. An `admin` account is bootstrapped from `ADMIN_EMAIL` and `ADMIN_PASSWORD` when the backend starts, if one does not already exist. There is no self-service role elevation.
 
-### ขอบเขต endpoint
+### Endpoint scope
 
-- สาธารณะ: `GET /api/health`, `GET /api/v1/financing/products`, `POST /api/v1/auth/register`, `POST /api/v1/auth/login`.
-- ผู้ใช้ที่เข้าสู่ระบบ: `GET /api/v1/auth/session`, `POST /api/v1/auth/logout`.
-- Customer: `/api/v1/customers/me*`, `/api/v1/transactions*`, `POST /api/v1/financing/recommendations`, `POST /api/v1/assistant/chat`, `POST /api/v1/support/tickets` และ `GET /api/v1/support/tickets` (เห็นเฉพาะ ticket ที่ตนเองเป็นเจ้าของ).
-- Admin: `GET /api/v1/customers`, `GET /api/v1/customers/:customerId`, `PATCH /api/v1/support/tickets/:ticketId` และ `GET /api/v1/support/tickets` (เห็นทั้งหมด).
+- Public: `GET /api/health`, `GET /api/v1/financing/products`, `POST /api/v1/auth/register`, and `POST /api/v1/auth/login`.
+- Authenticated account: `GET /api/v1/auth/session` and `POST /api/v1/auth/logout`.
+- Customer: `/api/v1/customers/me*`, `/api/v1/transactions*`, `POST /api/v1/financing/recommendations`, `POST /api/v1/assistant/chat`, `POST /api/v1/support/tickets`, and `GET /api/v1/support/tickets` (own tickets only).
+- Admin: `GET /api/v1/customers`, `GET /api/v1/customers/:customerId`, `PATCH /api/v1/support/tickets/:ticketId`, and `GET /api/v1/support/tickets` (all tickets).
 
-`GET /api/v1/customers/:customerId` ส่งคืนข้อมูลโปรไฟล์ที่ละเอียดกว่ารายชื่อลูกค้า จึงควรถือเป็นข้อมูลส่วนบุคคลที่มีการจำกัดสิทธิ์ ไม่ควรเพิ่ม role อื่นให้เรียก endpoint นี้โดยไม่กำหนดขอบเขตข้อมูลใหม่
+`GET /api/v1/customers/:customerId` returns more detailed profile data than the customer list. Treat it as restricted personal data; do not grant another role access without defining a new data scope.
 
-## HTTP request log ที่ระบบเขียนอยู่แล้ว
+## HTTP request logs currently emitted
 
-Middleware สร้าง JSON Lines หนึ่ง record ต่อ HTTP response ที่จบแล้ว รวม response `2xx` เช่น `200`, `201` และ error status เช่น `400`, `401`, `403`, `429`, `500`, `503` โดยไฟล์แบ่งตามวันที่ UTC ที่ `backend/.data/logs/YYYY-MM-DD.jsonl` และส่ง record เดียวกันไป stdout หรือ stderr
+The middleware writes one JSON Lines record for each completed HTTP response, including successful responses such as `200` and `201`, and error responses such as `400`, `401`, `403`, `429`, `500`, and `503`. Files are partitioned by UTC date at `backend/.data/logs/YYYY-MM-DD.jsonl`. The same record is also written to stdout or stderr.
 
-ตัวอย่าง `200 OK`:
+Example `200 OK` record:
 
 ```json
 {"timestamp":"2026-10-20T04:15:30.123Z","level":"info","event":"http_request","requestId":"9cc99a72-65ae-4904-97c6-67dc1517ff88","method":"GET","path":"/api/v1/customers/me","status":200,"durationMs":18.42,"actorRole":"customer"}
 ```
 
-ฟิลด์ที่มีในปัจจุบัน:
+Fields currently emitted:
 
-| ฟิลด์ | ความหมาย |
+| Field | Meaning |
 | --- | --- |
-| `timestamp` | เวลา UTC แบบ ISO 8601 |
-| `level` | `info` สำหรับต่ำกว่า 400, `warn` สำหรับ 4xx, `error` สำหรับ 5xx |
-| `event` | ชนิด event; ปัจจุบันคือ `http_request` |
-| `requestId` | UUID สำหรับค้น log ของ request เดียวกัน; ส่งกลับใน header `x-request-id` |
-| `method`, `path` | HTTP method และ path โดยไม่บันทึก query string |
-| `status` | status code ของ response ที่ส่งกลับ |
-| `durationMs` | เวลา request ตั้งแต่เข้า middleware จน response จบ |
-| `actorRole` | มีเมื่อ middleware ยืนยันตัวตนได้ เช่น `customer` หรือ `admin` |
-| `errorType`, `errorCode` | มีเมื่อ error handler ส่ง metadata กลับมา; ไม่มี error message หรือ stack trace ใน request record |
+| `timestamp` | UTC timestamp in ISO 8601 format |
+| `level` | `info` below 400, `warn` for 4xx, and `error` for 5xx |
+| `event` | Event type; currently `http_request` |
+| `requestId` | UUID for correlating a request; also returned in the `x-request-id` header |
+| `method`, `path` | HTTP method and path; query strings are not logged |
+| `status` | Response status code |
+| `durationMs` | Time from the logging middleware until the response finishes |
+| `actorRole` | Present when the request was authenticated, such as `customer` or `admin` |
+| `errorType`, `errorCode` | Present when the error handler provides metadata; the request record does not include an error message or stack trace |
 
-ไม่บันทึก request body, query string, cookie, authorization header, prompt หรือ response body ลง HTTP request log ตามการทำงานปัจจุบัน ไฟล์ log ถูก ignore จาก Git และสร้างด้วย permission `0600` ในกรณีไฟล์ใหม่ ระบบพยายาม append log หลัง response จบ; หากเขียนไฟล์ไม่ได้จะรายงาน `log_write_failed` ไป stderr
+The current HTTP request log does not include the request body, query string, cookies, authorization headers, prompts, or response bodies. Log files are Git-ignored. Newly created files use permission `0600`. After a response finishes, the logger attempts to append the record; if the write fails, it emits `log_write_failed` to stderr.
 
-## AI workflow logging และการเชื่อมกับ AI ของทีม
+## AI workflow logging and integration with the team's AI
 
-### สถานะในโค้ดปัจจุบัน
+### Current implementation status
 
-Assistant ปัจจุบันทำงานเป็นขั้นสั้น ๆ: validate message, เรียก PII masker, ส่ง request ไป OpenAI-compatible endpoint และดึงข้อความผลลัพธ์ ระบบบันทึกได้เพียง `http_request` ของ `POST /api/v1/assistant/chat` ยังไม่มี event log แยกสำหรับขั้น AI, ไม่มี agent orchestration หลายขั้น และไม่มี callback contract ที่ผูกกับ AI framework ของทีม การตั้งค่า provider ยังไม่ครบจะได้ `503` และ request ดังกล่าวยังปรากฏใน HTTP log
+The current assistant flow is short: validate a message, run the PII masker, send a request to an OpenAI-compatible endpoint, and extract the text result. The system currently records only the `http_request` event for `POST /api/v1/assistant/chat`. It has no per-step AI event logs, multi-step agent orchestration, or callback contract connected to the team's AI framework. If provider configuration is incomplete, the request returns `503` and still appears in the HTTP log.
 
-ดังนั้นตารางและ event contract ด้านล่างเป็นข้อกำหนดสำหรับการต่อ integration; ยังไม่ใช่ log ที่ระบบปล่อยออกมาแล้ว
+The event schema below is a requirement for a future integration; these events are not emitted by the application today.
 
-### Event ที่ AI adapter ควรส่ง
+### Events the AI adapter should emit
 
-ให้ backend เป็นผู้รับ event จาก AI adapter ของทีม แล้วเขียนเป็น structured JSONL โดยผูก `requestId` เดิมกับ `runId` และ `stepId`:
+The backend should receive events from the team's AI adapter and write them as structured JSONL, correlating the existing `requestId` with an AI `runId` and `stepId`:
 
-1. `ai_run_started` เมื่อเริ่มงาน AI
-2. `ai_step_started` ก่อนแต่ละขั้น เช่น `input_validation`, `pii_masking`, `context_retrieval`, `provider_request`, `response_validation` หรือชื่อขั้นจริงของ workflow
-3. `ai_step_completed` เมื่อขั้นนั้นเสร็จ พร้อม outcome แบบปลอดภัย เช่น จำนวนรายการที่พบหรือผล validation ผ่านหรือไม่
-4. `ai_step_failed` เมื่อขั้นล้มเหลว พร้อม error class/code ที่ไม่เปิดเผยข้อมูลลับ และระบุว่า retry ได้หรือไม่
-5. `ai_run_completed` หรือ `ai_run_failed` เมื่อปิด run พร้อมสถานะรวมและเวลารวม
+1. `ai_run_started` when an AI run begins.
+2. `ai_step_started` before each step, such as `input_validation`, `pii_masking`, `context_retrieval`, `provider_request`, or `response_validation`.
+3. `ai_step_completed` when a step succeeds, with a safe outcome such as a result count or validation status.
+4. `ai_step_failed` when a step fails, with a sanitized error class/code and whether a retry is appropriate.
+5. `ai_run_completed` or `ai_run_failed` when the run ends, with an overall status and duration.
 
-ตัวอย่าง event เมื่อ masking ผ่าน (ตัวอย่าง schema เป้าหมาย ไม่ใช่ output ที่มีในปัจจุบัน):
+Example successful masking event (target schema only; not currently emitted):
 
 ```json
 {"timestamp":"2026-10-20T04:15:30.124Z","level":"info","event":"ai_step_completed","requestId":"9cc99a72-65ae-4904-97c6-67dc1517ff88","runId":"ai-73b4a2","stepId":"step-02","step":"pii_masking","status":"success","durationMs":2.1,"result":{"inputAccepted":true,"redactionCount":2,"redactionTypes":["email","phone"]}}
 ```
 
-แนะนำฟิลด์ร่วมสำหรับ AI event: `timestamp`, `level`, `event`, `requestId`, `runId`, `stepId`, `step`, `status`, `durationMs`, `provider`, `model`, `attempt` และ `result` แบบสรุปที่ผ่านการตรวจข้อมูลแล้ว สำหรับความล้มเหลวใช้ `errorType`, `errorCode`, `retryable` และ `result` สรุปสาเหตุ ห้ามบันทึกข้อความ exception จาก provider ตรง ๆ โดยไม่ sanitize
+Recommended shared fields for AI events: `timestamp`, `level`, `event`, `requestId`, `runId`, `stepId`, `step`, `status`, `durationMs`, `provider`, `model`, `attempt`, and a validated, sanitized `result` summary. For failures, use `errorType`, `errorCode`, `retryable`, and a safe summary. Do not log raw provider exception messages without sanitization.
 
-### Integration contract สำหรับทีม AI
+### Integration contract for the AI team
 
-AI adapter ควรรับ event sink หรือ callback ที่ backend ส่งให้ แทนการเขียน log อิสระหลายรูปแบบ ตัวอย่าง interface ที่ framework ใดก็ปรับใช้ได้:
+The AI adapter should receive an event sink or callback from the backend instead of writing its own unstructured logs. The interface below is framework-agnostic and can be adapted to the team's stack:
 
 ```ts
 type AiStepEvent = {
@@ -108,38 +108,38 @@ type AiStepEvent = {
 type AiEventSink = (event: AiStepEvent) => void | Promise<void>;
 ```
 
-ให้ adapter ส่งเฉพาะชื่อขั้น สถานะ และ summary ที่อนุญาตไว้ ไม่ส่ง prompt, completion, chain-of-thought, customer profile, secret, access token หรือ raw exception เข้า sink ระบบ backend ควรเติม `requestId`, `actorRole` (ถ้าทราบ), timestamp และเขียนผ่าน logger กลาง ห้ามให้ provider เป็นผู้กำหนด `requestId` หรือเขียน raw log ลง shared storage โดยตรง
+The adapter should send only step names, statuses, and allowlisted summaries. It must not send prompts, completions, chain-of-thought, customer profiles, secrets, access tokens, or raw exceptions to the event sink. The backend should add `requestId`, `actorRole` when available, and a timestamp, then write through a shared logger. Do not let a provider choose `requestId` or write raw logs directly to shared storage.
 
-หาก output summary มาจากข้อความอิสระของ model ให้แปลงเป็น enum/ตัวเลขที่ schema กำหนดก่อนเขียน log เช่น `resultCount`, `schemaValid`, `decisionCategory`; หลีกเลี่ยงการบันทึกคำตอบที่ model สร้างขึ้นทั้งประโยค เพราะอาจสะท้อนข้อมูลผู้ใช้กลับมา
+If a summary originates as free-form model text, validate and convert it to a schema-defined enum or number before logging, such as `resultCount`, `schemaValid`, or `decisionCategory`. Avoid logging full natural-language responses because they may reveal user information.
 
-### ข้อห้ามด้านข้อมูลใน AI logs
+### Data that must not appear in AI logs
 
-- ไม่ log prompt/input/output ดิบ รวมถึงข้อความที่ผ่านการ mask แล้ว หากยังมีรายละเอียดธุรกิจหรือการเงิน
-- ไม่ log ชื่อ อีเมล โทรศัพท์ เลขบัญชี เลขประจำตัว ที่อยู่ ยอดเงิน หรือข้อมูลระบุตัวบุคคลใน `resultSummary`
-- ใช้ opaque IDs (`requestId`, `runId`, `stepId`) และจำกัดสิทธิ์เข้าถึง log
-- บันทึกจำนวน/ประเภทการ redact ได้ แต่ห้ามบันทึกค่าก่อนหรือหลัง redact
-- ห้ามบันทึก secret, API key, cookie, authorization header, provider URL ที่มี credential หรือ chain-of-thought
-- กำหนด retention, การลบ, encryption at rest, access audit และ alert ก่อนใช้กับข้อมูลจริง
+- Do not log raw prompts, inputs, or outputs, including masked messages that may still contain business or financial details.
+- Do not log names, email addresses, phone numbers, account numbers, national IDs, addresses, amounts, or other identifying data in `resultSummary`.
+- Use opaque IDs (`requestId`, `runId`, `stepId`) and restrict access to logs.
+- Redaction counts and types may be logged, but never the values before or after redaction.
+- Never log secrets, API keys, cookies, authorization headers, credential-bearing provider URLs, or chain-of-thought.
+- Define retention, deletion, encryption at rest, access auditing, and alerting before using real customer data.
 
-## อ่าน log ในเครื่อง
+## Reading local logs
 
 ```bash
-# ดู log ของวันนี้ตามเวลา UTC
+# Follow today's log file using the UTC date
 tail -F "backend/.data/logs/$(date -u +%F).jsonl"
 
-# ดูเฉพาะ request ที่ได้ 200
-jq 'select(.event == "http_request" and .status == 200)' backend/.data/logs/"$(date -u +%F).jsonl"
+# Show only successful 200 responses
+jq 'select(.event == "http_request" and .status == 200)' "backend/.data/logs/$(date -u +%F).jsonl"
 
-# ค้น request ตาม request ID
-jq 'select(.requestId == "<request-id>")' backend/.data/logs/"$(date -u +%F).jsonl"
+# Find records for a request ID
+jq 'select(.requestId == "<request-id>")' "backend/.data/logs/$(date -u +%F).jsonl"
 ```
 
-ถ้ารัน backend ใน terminal ที่เปิดอยู่ จะเห็น JSONL ที่ stdout/stderr ด้วย ถ้ารันเป็น service/container ให้ใช้ log viewer ของ process manager/container และเก็บไฟล์หรือส่ง stdout ไป centralized log platform โดยคง schema เดิม
+When the backend runs in an open terminal, JSONL records also appear on stdout/stderr. For a service or container, use the process manager/container log viewer and forward stdout to a centralized logging platform while preserving the schema.
 
-## Operational gaps ที่ควรทำก่อน production
+## Operational gaps before production
 
-- เพิ่ม AI run/step event sink ตาม contract ข้างต้น
-- เพิ่ม audit event สำหรับการเปลี่ยนแปลงข้อมูลสำคัญ เช่น update profile, create transaction, update ticket และการอ่าน profile โดย admin โดยบันทึก resource ID แบบ opaque และผลสำเร็จ/ล้มเหลว ห้ามเก็บ payload
-- เพิ่ม log rotation/retention, centralized collection, monitoring/alert และทดสอบกรณี log store ล่ม
-- ทบทวน CSRF/origin policy ก่อนเปิด API ให้เข้าถึงจากเครือข่ายอื่น
-- เปลี่ยน rate limiter เป็น shared store เมื่อมีหลาย instance และกำหนด trusted proxy ให้เหมาะกับ deployment
+- Add an AI run/step event sink using the contract above.
+- Add domain audit events for sensitive changes, such as profile updates, transaction creation, and ticket updates, plus admin profile reads. Record opaque resource IDs and outcomes; do not store payloads.
+- Add log rotation/retention, centralized collection, monitoring/alerts, and tests for log-store failures.
+- Review and enforce the CSRF/origin policy before exposing the API beyond the local development environment.
+- Use a shared rate-limit store for multiple instances and configure trusted proxies for the deployment.

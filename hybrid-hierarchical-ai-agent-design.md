@@ -199,10 +199,10 @@ fintech/
   $$\text{DTI} = \frac{\text{Monthly Debt}}{\text{Monthly Revenue}}$$
 - **5-Stage Pipeline Architecture:**
   1. **Stage 1: Pre-Retrieval (Query Synthesis):** Context-augmented query formulation using `deficit`, `dscr`, `business_age_years`, and `has_collateral`.
-  2. **Stage 2: Hybrid Retrieval (FAISS + BM25 with RRF):** In-memory Dense (FAISS) for semantic context + Sparse (BM25) for exact financial terms ("OD", "บสย.", "Factoring", "Clean Loan"), fused via Reciprocal Rank Fusion (RRF).
+  2. **Stage 2: Hybrid Retrieval (FAISS + BM25 with RRF):** In-memory Dense (FAISS) for semantic context + Sparse (BM25) for exact financial terms ("OD", "TCG", "Factoring", "Clean Loan"), fused via Reciprocal Rank Fusion (RRF).
   3. **Stage 3: Deterministic Constraint Grader:** Pure Python assertion layer checking candidates against `extra_rules` (`min_revenue`, `min_age`, `requires_collateral`).
-  4. **Stage 4: Corrective RAG (CRAG) Recovery Loop:** If candidate fails due to constraints (e.g. `COLLATERAL_REQUIRED`), diagnoses reason, relaxes query (e.g. Clean Loan / บสย. guarantee), and re-retrieves (max 1 retry loop).
-  5. **Stage 5: Synthesis & Document Checklist:** Computes approval probability score (%), synthesizes pros/cons using Qwen, and generates a concrete `required_documents` checklist (e.g. ภ.พ.30, สเตทเมนต์ 6 เดือน, หนังสือรับรองบริษัท) formatted for LINE Carousel.
+  4. **Stage 4: Corrective RAG (CRAG) Recovery Loop:** If candidate fails due to constraints (e.g. `COLLATERAL_REQUIRED`), diagnoses reason, relaxes query (e.g. Clean Loan / TCG guarantee), and re-retrieves (max 1 retry loop).
+  5. **Stage 5: Synthesis & Document Checklist:** Computes approval probability score (%), synthesizes pros/cons using Qwen, and generates a concrete `required_documents` checklist (e.g. VAT returns (PP.30), bank statements for 6 months, company affidavit) formatted for LINE Carousel.
 
 ### 5.4 Reflection & Invariant Sanity Guard (`core/guard.py`)
 - **Technology:** 100% Pure Python assertions.
