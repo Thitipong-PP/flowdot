@@ -58,13 +58,14 @@ MongoDB must be running first. With Docker installed, `docker compose up -d mong
 
 ## Start the frontend
 
-In another terminal:
+On first setup, create the local frontend env file, then start the frontend in another terminal:
 
 ```bash
+cp frontend/.env.example frontend/.env.local
 npm run dev:frontend
 ```
 
-The web app listens on `http://localhost:3000`. Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` when the API is hosted somewhere other than `http://localhost:4000/api/v1`. This is a Next.js public build variable; restart the dev server after changing it, and rebuild/redeploy in production.
+The web app listens on `http://localhost:3000`. Edit `frontend/.env.local` if the API is hosted somewhere other than `http://localhost:4000/api/v1`. `NEXT_PUBLIC_API_URL` is a Next.js public build variable; restart the dev server after changing it, and rebuild/redeploy in production.
 
 ## API routes
 
@@ -91,17 +92,15 @@ npm run seed:demo --workspace=@flowdot/backend
 
 The development admin and customer email/password values are in the ignored local file `backend/.env`. They are generated for this checkout; use new secrets before exposing the service to anyone else.
 
-Every HTTP request is written as one JSON line to `backend/.data/logs/YYYY-MM-DD.jsonl`, including successful responses and 4xx/5xx/503 statuses. Logs contain method, path, status, request ID, and duration; they do not contain request bodies, cookies, or authorization headers. The log folder is ignored by Git.
+Every completed HTTP response is written as one JSON line to `backend/.data/logs/YYYY-MM-DD.jsonl`, including successful responses and 4xx/5xx/503 statuses. Logs contain method, path, status, request ID, and duration; they do not contain request bodies, cookies, or authorization headers. The log folder is ignored by Git. AI step-level events are not emitted yet; see the logging document for the proposed team integration contract.
 
 The assistant route requires an OpenAI-compatible endpoint configured with `LLM_API_URL`, `LLM_API_KEY`, and `LLM_MODEL`. The backend PII masking boundary runs before any provider request. When these values are missing, chat returns HTTP 503 instead of a simulated answer. Do not configure a provider until its data-processing terms are approved for the financial information this app handles.
 
 The complete OpenAPI 3.1 API contract is in [`backend/openapi.yaml`](backend/openapi.yaml). Import it into Swagger Editor, Postman, or Insomnia to explore the request and response schemas.
 
-Seed two illustrative products matching the current UI demo:
+Security, permission tiers, current request-log fields, and the proposed AI step-event contract are documented in [`docs/permission-and-audit-logging.md`](docs/permission-and-audit-logging.md). The current implementation writes one HTTP completion record per response; per-step AI events are a documented integration requirement and are not emitted yet.
 
-```bash
-npm run seed --workspace=@flowdot/backend
-```
+The current source/configuration self-assessment, known risks, and recommended production remediation are in [`docs/security-self-assessment.md`](docs/security-self-assessment.md). This is an initial code review, not a penetration test or compliance certification.
 
 The seeded lender products, demo customer, example transactions, and ticket are sample data. Replace product terms with verified lender data before production use. The app currently supports real registration/login, profile updates, database-backed recommendations, transaction entry and summaries, support-ticket submission, and role-protected admin customer/ticket views. The chat panel is an in-app preview; no LINE webhook or messages are connected.
 
