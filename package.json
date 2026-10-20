@@ -1,8 +1,12 @@
 {
-  "name": "sme-finance-copilot-demo",
-  "version": "1.0.0",
+  "name": "flowdot",
   "private": true,
-  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "lint": "eslint ." },
-  "dependencies": { "next": "^16.4.0", "react": "^19.3.0", "react-dom": "^19.3.0", "lucide-react": "^0.468.0" },
-  "devDependencies": { "@types/node": "^22.0.0", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0", "eslint": "^9.0.0", "eslint-config-next": "^16.4.0", "typescript": "^5.7.0" }
+  "workspaces": ["frontend", "backend"],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=@flowdot/frontend",
+    "dev:backend": "npm run dev --workspace=@flowdot/backend",
+    "build:frontend": "npm run build --workspace=@flowdot/frontend",
+    "start:frontend": "npm run start --workspace=@flowdot/frontend",
+    "start:backend": "npm run start --workspace=@flowdot/backend"
+  }
 }

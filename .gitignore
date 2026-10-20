@@ -3,7 +3,11 @@ node_modules/
 .next/
 out/
 dist/
-.env*
+coverage/
+backend/.data/
+.env
+.env.*
 !.env.example
 *.log
+*.tsbuildinfo
 .DS_Store

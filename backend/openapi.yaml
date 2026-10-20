@@ -1,0 +1,352 @@
+openapi: 3.1.0
+info:
+  title: Flowdot API
+  version: 1.1.0
+  description: MongoDB-backed API for customer accounts, financing, transactions, support, and assistant requests.
+servers:
+  - url: http://localhost:4000
+    description: Local development
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Customers
+  - name: Financing
+  - name: Transactions
+  - name: Support
+  - name: Assistant
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Check API, MongoDB, and assistant configuration
+      responses:
+        '200':
+          description: API and database are available
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string, const: ok }
+                      database: { type: string, const: connected }
+                      assistant: { type: string, enum: [configured, not_configured] }
+        '503': { description: MongoDB is unavailable }
+  /api/v1/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Create customer profile and account, then sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegistrationInput' }
+      responses:
+        '201':
+          description: Customer and account created; sets an HttpOnly session cookie
+          headers:
+            Set-Cookie: { schema: { type: string }, description: flow_session cookie }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { description: Email is already registered }
+        '429': { description: Registration rate limit exceeded }
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, maxLength: 128 }
+      responses:
+        '200': { description: Signed in; sets an HttpOnly session cookie }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { description: Invalid credentials }
+        '429': { description: Sign-in rate limit exceeded }
+  /api/v1/auth/session:
+    get:
+      tags: [Authentication]
+      summary: Return the signed-in account and safe profile fields
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200': { description: Active session }
+        '401': { description: Missing or expired session }
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke active sessions and clear the session cookie
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200': { description: Signed out }
+        '401': { description: Missing or expired session }
+  /api/v1/customers:
+    get:
+      tags: [Customers]
+      summary: List the latest 200 customer profiles (admin only)
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200': { description: Customer profiles }
+        '401': { description: Sign-in required }
+        '403': { description: Admin role required }
+  /api/v1/customers/{customerId}:
+    get:
+      tags: [Customers]
+      summary: Get a customer profile (admin only)
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - in: path
+          name: customerId
+          required: true
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+      responses:
+        '200': { description: Customer profile }
+        '401': { description: Sign-in required }
+        '403': { description: Admin role required }
+        '404': { description: Customer not found }
+  /api/v1/customers/me:
+    get:
+      tags: [Customers]
+      summary: Get the current customer's profile
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200': { description: Customer profile }
+        '401': { description: Sign-in required }
+    patch:
+      tags: [Customers]
+      summary: Update editable fields on the current customer's profile
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                firstName: { type: string, maxLength: 80 }
+                lastName: { type: string, maxLength: 80 }
+                phone: { type: string, minLength: 8, maxLength: 24 }
+                businessName: { type: string, maxLength: 160 }
+                industry: { type: string, maxLength: 100 }
+      responses:
+        '200': { description: Updated profile }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { description: Sign-in required }
+  /api/v1/customers/me/dashboard:
+    get:
+      tags: [Transactions]
+      summary: Return totals and up to 20 recent stored transactions
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200': { description: Customer-scoped transaction summary }
+        '401': { description: Sign-in required }
+  /api/v1/financing/products:
+    get:
+      tags: [Financing]
+      summary: List active financing products
+      responses:
+        '200':
+          description: Active products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/FinancingProduct' }
+  /api/v1/financing/recommendations:
+    post:
+      tags: [Financing]
+      summary: Match active products against the signed-in customer's profile
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties: {}
+      responses:
+        '200': { description: Matching product list }
+        '401': { description: Sign-in required }
+        '404': { description: Customer profile not found }
+  /api/v1/transactions:
+    get:
+      tags: [Transactions]
+      summary: List up to 100 transactions owned by the current customer
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200': { description: Customer transactions }
+        '401': { description: Sign-in required }
+    post:
+      tags: [Transactions]
+      summary: Record an income or expense for the current customer
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [type, description, category, amount]
+              properties:
+                type: { type: string, enum: [income, expense] }
+                description: { type: string, minLength: 1, maxLength: 160 }
+                category: { type: string, minLength: 1, maxLength: 80 }
+                amount: { type: number, exclusiveMinimum: 0 }
+                occurredAt: { type: string, format: date-time }
+                source: { type: string, enum: [manual, receipt] }
+      responses:
+        '201': { description: Transaction stored in MongoDB }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { description: Sign-in required }
+  /api/v1/support/tickets:
+    post:
+      tags: [Support]
+      summary: Create a support ticket for the signed-in customer
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [subject, message]
+              properties:
+                subject: { type: string, minLength: 1, maxLength: 160 }
+                message: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '201': { description: Ticket stored in MongoDB }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { description: Sign-in required }
+    get:
+      tags: [Support]
+      summary: List the current customer's tickets, or all tickets for admins
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [open, in_progress, resolved] }
+      responses:
+        '200': { description: Up to 100 newest tickets }
+        '401': { description: Sign-in required }
+  /api/v1/support/tickets/{ticketId}:
+    patch:
+      tags: [Support]
+      summary: Update ticket status (admin only)
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status: { type: string, enum: [open, in_progress, resolved] }
+      responses:
+        '200': { description: Ticket updated }
+        '401': { description: Sign-in required }
+        '403': { description: Admin role required }
+        '404': { description: Ticket not found }
+  /api/v1/assistant/chat:
+    post:
+      tags: [Assistant]
+      summary: Send a message to the configured OpenAI-compatible model endpoint
+      description: PII masking runs on the backend before a provider request. Returns 503 when LLM_API_URL, LLM_API_KEY, or LLM_MODEL is missing.
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [message]
+              properties:
+                message: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '200': { description: Assistant response }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { description: Sign-in required }
+        '503': { description: AI provider is not configured or unavailable }
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: flow_session
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message: { type: string }
+                  details: { type: array, items: { type: object } }
+  schemas:
+    RegistrationInput:
+      type: object
+      description: All original onboarding fields are required; financialDataConsent must be true. See backend/src/schemas/auth.js for the complete enum list.
+      required: [firstName, lastName, email, phone, password, businessName, legalEntityType, vatRegistered, businessAge, ownerAge, ownerNationality, industry, annualRevenueBand, minimumCashReserve, monthlyDebtPayment, outstandingDebt, nextPaymentDueDay, fixedMonthlyExpenses, financingPurpose, collateralAvailable, latePaymentOver90Days, financialDataConsent]
+      properties:
+        firstName: { type: string, maxLength: 80 }
+        lastName: { type: string, maxLength: 80 }
+        email: { type: string, format: email }
+        phone: { type: string, minLength: 8, maxLength: 24 }
+        password: { type: string, minLength: 12, maxLength: 128 }
+        businessName: { type: string, maxLength: 160 }
+        legalEntityType: { type: string, enum: [individual, commercial_registration, limited_partnership, limited_company] }
+        vatRegistered: { type: boolean }
+        businessAge: { type: string, enum: [under_6_months, 6_months_to_1_year, 1_to_3_years, 3_to_5_years, over_5_years] }
+        ownerAge: { type: string, enum: [under_20, 20_to_35, 36_to_50, 51_to_65, over_65] }
+        ownerNationality: { type: string }
+        industry: { type: string }
+        annualRevenueBand: { type: string, enum: [up_to_75m, 75m_to_500m, over_500m] }
+        minimumCashReserve: { type: number, minimum: 0 }
+        monthlyDebtPayment: { type: number, minimum: 0 }
+        outstandingDebt: { type: number, minimum: 0 }
+        nextPaymentDueDay: { type: integer, minimum: 1, maximum: 31 }
+        fixedMonthlyExpenses: { type: number, minimum: 0 }
+        financingPurpose: { type: string, enum: [working_capital, inventory_or_receivables, equipment_or_investment, business_expansion] }
+        collateralAvailable: { type: boolean }
+        latePaymentOver90Days: { type: string, enum: [no, yes, prefer_not_to_say] }
+        financialDataConsent: { type: boolean, const: true }
+    FinancingProduct:
+      type: object
+      properties:
+        _id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        lender: { type: string }
+        description: { type: string }
+        maximumAmount: { type: number }
+        startingAnnualRate: { type: number }
+        minBusinessAgeMonths: { type: integer }
+        requiresVatRegistration: { type: boolean }
+        requiresCollateral: { type: boolean }
+        active: { type: boolean }
