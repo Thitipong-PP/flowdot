@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SME Finance Copilot — AI Agent Live Chat Interface</title>
+  
+  <!-- Google Fonts: Prompt & Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Prompt', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              bg: '#080D1A',
+              card: '#131B2E',
+              border: '#1E293B',
+              cyan: '#38bdf8',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#ef4444',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #080D1A;
+      color: #e2e8f0;
+      font-family: 'Plus Jakarta Sans', Prompt, sans-serif;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    .glass-box {
+      background: rgba(19, 27, 46, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.6);
+    }
+    .node-active {
+      border-color: #38bdf8 !important;
+      background: rgba(14, 165, 233, 0.18) !important;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.45) !important;
+    }
+    .node-success {
+      border-color: #10b981 !important;
+      background: rgba(16, 185, 129, 0.15) !important;
+    }
+    .node-error {
+      border-color: #ef4444 !important;
+      background: rgba(239, 68, 68, 0.18) !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP APP NAV -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-4 py-2.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
+          <i data-lucide="bot" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-slate-100 text-sm sm:text-base tracking-tight">SME Finance Copilot AI</h1>
+            <span class="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Production Real
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400">เชื่อมต่อ MongoDB Atlas Statement จริง • ปราศจาก Mock</p>
+        </div>
+      </div>
+
+      <!-- BUSINESS PROFILE BADGE (REAL MONGODB DATA) -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300">
+          <i data-lucide="building-2" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span><strong id="bizName" class="text-white">กำลังโหลด...</strong></span>
+          <span class="text-slate-600">|</span>
+          <span class="text-emerald-400 font-mono font-semibold" id="bizCash">เงินสด: -</span>
+          <span class="text-slate-600">|</span>
+          <span class="text-rose-400 font-mono font-semibold" id="bizDebt">หนี้: -</span>
+        </div>
+
+        <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+          <span class="text-slate-400">User:</span>
+          <input id="sessionInput" type="text" value="sme_user_001" onchange="connectSSE(); fetchUserProfile();" class="bg-transparent text-cyan-400 font-mono font-medium outline-none w-24 text-xs border-b border-cyan-800/60 focus:border-cyan-400">
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN DUAL-PANEL LAYOUT -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-5 overflow-hidden">
+    
+    <!-- LEFT PANEL: INTERACTIVE CHAT (7 COLS) -->
+    <section class="lg:col-span-7 flex flex-col glass-box rounded-2xl overflow-hidden shadow-2xl h-[calc(100vh-5.5rem)]">
+      
+      <!-- CHAT HEADER & MODE SWITCH -->
+      <div class="p-3 border-b border-slate-800/80 bg-slate-950/50 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <i data-lucide="message-square" class="w-4 h-4 text-cyan-400"></i> LINE Bot Interactive Chat
+          </span>
+
+          <!-- MODE TOGGLE -->
+          <div class="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+            <button id="modeDebounceBtn" onclick="setMode('debounce')" class="px-2 py-1 rounded-md bg-cyan-600 text-white font-semibold transition flex items-center gap-1">
+              <i data-lucide="layers" class="w-3 h-3"></i> <span id="debounceBtnLabel">Debounce (LINE จริง)</span>
+            </button>
+            <button id="modeDirectBtn" onclick="setMode('direct')" class="px-2 py-1 rounded-md text-slate-400 hover:text-white transition flex items-center gap-1">
+              <i data-lucide="zap" class="w-3 h-3"></i> Direct Chat (ส่งทันที)
+            </button>
+          </div>
+        </div>
+
+        <!-- QUICK SCENARIO CHIPS -->
+        <div class="flex flex-wrap gap-1.5 text-[11px]">
+          <span class="text-slate-500 self-center text-[10px] mr-1">ลองคลิก:</span>
+          <button onclick="sendQuickPrompt('สวัสดีครับ มีบริการอะไรบ้าง')" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 transition">
+            💬 ทักทาย "สวัสดี"
+          </button>
+          <button onclick="sendQuickPrompt('บิลค่าซ่อมเครื่องจักร 95,000 บาท ช่วยดูสภาพคล่องหน่อย')" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-rose-500 text-slate-300 hover:text-rose-300 transition">
+            🚨 บิลซ่อม 95k (ขาดสภาพคล่อง)
+          </button>
+          <button onclick="sendQuickPrompt('มีบิลค่าวัตถุดิบ 15,000 บาท สภาพคล่องยังไหวไหม')" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-emerald-300 transition">
+            ✅ บิลค่าของ 15k (ปลอดภัย)
+          </button>
+          <button onclick="testConsecutiveMessages()" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-300 hover:text-amber-300 transition flex items-center gap-1">
+            ⚡ ทดสอบส่ง 2 ข้อความติดกัน
+          </button>
+        </div>
+      </div>
+
+      <!-- CHAT MESSAGES STREAM -->
+      <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
+        <!-- WELCOME MESSAGE -->
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-cyan-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-cyan-600/30">
+            <i data-lucide="bot" class="w-4 h-4"></i>
+          </div>
+          <div class="max-w-[85%] rounded-2xl rounded-tl-sm bg-slate-900/90 border border-slate-800 p-3.5 text-xs text-slate-200 leading-relaxed shadow-lg">
+            <p class="font-semibold text-cyan-400 mb-1 flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> ยินดีต้อนรับสู่ระบบจริง 100%!
+            </p>
+            <p>ระบบเชื่อมต่อกับฐานข้อมูล MongoDB Atlas Statement ของท่านเรียบร้อยแล้วครับ</p>
+            <ul class="list-disc list-inside mt-1.5 space-y-1 text-slate-300 text-[11px]">
+              <li>ถ้าพิมพ์คุยทั่วไป (เช่น <em>"สวัสดี"</em> หรือ <em>"เช็คยอดเงิน"</em>) ระบบจะดึงสถานะเงินสดจริง ไม่มีการมั่วยอด 95,000 บาท</li>
+              <li>ถ้าพิมพ์บิลค่าใช้จ่าย (เช่น <em>"95,000 บาท"</em>) ระบบจะจำลองผลกระทบและจับคู่สินเชื่อ SME ที่ผ่านเกณฑ์จริง</li>
+              <li>ถ้าเลือกโหมด <strong>Debounce (<span class="debounceSecLabel">รอจังหวะ</span>)</strong> เมื่อส่งหลายข้อความติดกัน ระบบจะรวบรวมเป็นบิลเดียวตามระบบ LINE จริงครับ</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEBOUNCE COUNTDOWN BAR (ANIMATED) -->
+      <div id="debounceProgressContainer" class="hidden px-4 py-2 bg-slate-950 border-t border-cyan-800/60">
+        <div class="flex items-center justify-between text-[11px] mb-1">
+          <span class="text-cyan-400 font-medium flex items-center gap-1">
+            <i data-lucide="layers" class="w-3.5 h-3.5 animate-spin"></i>
+            <span id="debounceStatusText">⏳ กำลังรวบรวมข้อความ... ส่งข้อความต่อได้ทันที!</span>
+          </span>
+          <span id="debounceCountBadge" class="px-2 py-0.5 rounded bg-cyan-900/80 text-cyan-200 font-mono font-bold text-[10px]">1 ข้อความ</span>
+        </div>
+        <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+          <div id="debounceProgressBar" class="bg-cyan-500 h-full w-full transition-all duration-100 ease-linear"></div>
+        </div>
+      </div>
+
+      <!-- TYPING INDICATOR -->
+      <div id="typingIndicator" class="hidden px-4 py-2 flex items-center gap-2 text-xs text-cyan-400 animate-pulse bg-slate-950/40 border-t border-slate-800/50">
+        <i data-lucide="cpu" class="w-4 h-4 animate-spin"></i>
+        <span id="typingText">AI Multi-Agent กำลังคิดและประมวลผล...</span>
+      </div>
+
+      <!-- INPUT BAR -->
+      <div class="p-3 bg-slate-950/90 border-t border-slate-800/80">
+        <!-- FILE PREVIEW CHIP (IF ATTACHED) -->
+        <div id="filePreviewChip" class="hidden mb-2 items-center justify-between px-3 py-1.5 rounded-lg bg-cyan-950/40 border border-cyan-800 text-xs text-cyan-200">
+          <span class="flex items-center gap-1.5 truncate">
+            <i data-lucide="file-image" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span id="fileNameText">slip.png</span>
+          </span>
+          <button onclick="removeAttachedFile()" class="text-slate-400 hover:text-rose-400">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <form id="chatForm" onsubmit="handleChatSubmit(event)" class="flex items-center gap-2">
+          <!-- ATTACH FILE BUTTON -->
+          <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleFileSelected(event)">
+          <button type="button" onclick="document.getElementById('imageInput').click()" title="แนบภาพสลิปหรือใบเสร็จจริง" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500 hover:text-cyan-400 text-slate-400 flex items-center justify-center transition">
+            <i data-lucide="paperclip" class="w-4 h-4"></i>
+          </button>
+
+          <!-- TEXT INPUT -->
+          <input id="userTextInput" type="text" placeholder="พิมพ์ข้อความคุยได้เลย เช่น 'สวัสดี' หรือ 'บิลค่าซ่อม 95,000 บาท'..." class="flex-1 bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 transition">
+
+          <!-- SEND BUTTON -->
+          <button type="submit" id="sendBtn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-cyan-600/30 transition disabled:opacity-50">
+            <span>ส่ง</span>
+            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+          </button>
+        </form>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: REAL-TIME MULTI-AGENT TELEMETRY & BRAIN (5 COLS) -->
+    <section class="lg:col-span-5 flex flex-col space-y-4 h-[calc(100vh-5.5rem)] overflow-hidden">
+      
+      <!-- 1. LIVE AGENT PIPELINE MONITOR -->
+      <div class="glass-box rounded-2xl p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+            <h2 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Multi-Agent Live Radar</h2>
+          </div>
+          <span id="sseStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> SSE Idle
+          </span>
+        </div>
+
+        <!-- 6 AGENT NODES -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <!-- NODE 1 -->
+          <div id="node_INGRESS" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 transition">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="font-semibold text-slate-300">1. Ingress & Router</span>
+              <span class="node-dot w-2 h-2 rounded-full bg-slate-700"></span>
+            </div>
+            <p class="text-[10px] text-slate-500">Fast-Path & Debouncer</p>
+          </div>
+
+          <!-- NODE 2 -->
+          <div id="node_VISION_WORKER" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 transition">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="font-semibold text-slate-300">2. Vision Worker</span>
+              <span class="node-dot w-2 h-2 rounded-full bg-slate-700"></span>
+            </div>
+            <p class="text-[10px] text-slate-500">Typhoon OCR & Duplicate Check</p>
+          </div>
+
+          <!-- NODE 3 -->
+          <div id="node_CASHFLOW_WORKER" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 transition">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="font-semibold text-slate-300">3. Cashflow Worker</span>
+              <span class="node-dot w-2 h-2 rounded-full bg-slate-700"></span>
+            </div>
+            <p class="text-[10px] text-slate-500">Burn Rate & Runway Days</p>
+          </div>
+
+          <!-- NODE 4 -->
+          <div id="node_SANITY_GUARD" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 transition">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="font-semibold text-slate-300">4. Invariant Guard</span>
+              <span class="node-dot w-2 h-2 rounded-full bg-slate-700"></span>
+            </div>
+            <p class="text-[10px] text-slate-500">100% Math Verification</p>
+          </div>
+
+          <!-- NODE 5 -->
+          <div id="node_LOAN_WORKER" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 transition">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="font-semibold text-slate-300">5. 5-Stage Agentic RAG</span>
+              <span class="node-dot w-2 h-2 rounded-full bg-slate-700"></span>
+            </div>
+            <p class="text-[10px] text-slate-500">FAISS+BM25 & Ollama Rationale</p>
+          </div>
+
+          <!-- NODE 6 -->
+          <div id="node_RESPONSE_COMPILER" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 transition">
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="font-semibold text-slate-300">6. Compiler & Flex</span>
+              <span class="node-dot w-2 h-2 rounded-full bg-slate-700"></span>
+            </div>
+            <p class="text-[10px] text-slate-500">LINE Carousel & Summary</p>
+          </div>
+        </div>
+
+        <!-- LIVE METRICS CARD (AUTO UPDATED) -->
+        <div id="liveMetricsBox" class="mt-3 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] grid grid-cols-3 gap-2 text-center">
+          <div>
+            <div class="text-[10px] text-slate-500">เงินสดหลังจ่าย</div>
+            <div id="metricProjected" class="font-bold text-slate-200 mt-0.5">-</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500">วันประคองตัว</div>
+            <div id="metricRunway" class="font-bold text-slate-200 mt-0.5">-</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-500">ความเสี่ยง</div>
+            <div id="metricRisk" class="font-bold text-slate-200 mt-0.5">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. LIVE AGENT THOUGHT LOGS (TERMINAL STREAM) -->
+      <div class="flex-1 glass-box rounded-2xl p-3 flex flex-col overflow-hidden shadow-xl">
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+          <div class="flex items-center gap-1.5 text-xs font-mono font-semibold text-slate-300">
+            <i data-lucide="terminal" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span>Real-time Thought Stream</span>
+          </div>
+          <button onclick="clearThoughtLogs()" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
+        </div>
+
+        <div id="thoughtTerminal" class="flex-1 overflow-y-auto space-y-2 font-mono text-[11px] text-slate-300 p-1">
+          <div class="text-slate-500 text-[10px] italic">// พร้อมรับฟัง Telemetry Stream จาก FastAPI ผ่าน SSE...</div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- JAVASCRIPT APP LOGIC -->
+  <script>
+    let currentEventSource = null;
+    let attachedFileObj = null;
+    let attachedBase64 = null;
+    let attachedFileName = null;
+    let chatMode = 'debounce'; // 'debounce' or 'direct'
+    let debounceTimer = null;
+    let debounceCount = 0;
+    let serverDebounceSeconds = 3.0; // Dynamically updated from server / .env
+    let debounceTimeLeft = serverDebounceSeconds;
+
+    // 1. Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      fetchSystemHealth();
+      fetchUserProfile();
+      connectSSE();
+    });
+
+    // 1.1 Fetch System Health & Debounce Settings from Backend (.env)
+    async function fetchSystemHealth() {
+      try {
+        const res = await fetch('/health');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.debounce_wait_seconds !== undefined) {
+            updateDebounceUI(data.debounce_wait_seconds);
+          }
+        }
+      } catch (e) {
+        console.warn('Health check warning:', e);
+      }
+    }
+
+    function updateDebounceUI(seconds) {
+      serverDebounceSeconds = Number(seconds);
+      const label = document.getElementById('debounceBtnLabel');
+      if (label) {
+        label.textContent = `Debounce ${serverDebounceSeconds}s (LINE จริง)`;
+      }
+      document.querySelectorAll('.debounceSecLabel').forEach(el => {
+        el.textContent = `${serverDebounceSeconds}s`;
+      });
+    }
+
+    // 2. Fetch User Financial Profile from Real MongoDB
+    async function fetchUserProfile() {
+      const sessionId = document.getElementById('sessionInput').value.trim() || 'sme_user_001';
+      try {
+        const res = await fetch(`/api/v1/profile?user_id=${sessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('bizName').textContent = data.business_name || 'บจก. สมชาย ซุปเปอร์มาร์ท';
+          document.getElementById('bizCash').textContent = 'เงินสด: ' + Number(data.current_cash || 0).toLocaleString() + ' ฿';
+          document.getElementById('bizDebt').textContent = 'หนี้: ' + Number(data.upcoming_debt || 0).toLocaleString() + ' ฿';
+        }
+      } catch (e) {
+        console.warn('Profile fetch warning:', e);
+      }
+    }
+
+    // 3. Mode Switcher (Debounce vs Direct)
+    function setMode(mode) {
+      chatMode = mode;
+      const dBtn = document.getElementById('modeDebounceBtn');
+      const dirBtn = document.getElementById('modeDirectBtn');
+      if (mode === 'debounce') {
+        dBtn.className = "px-2 py-1 rounded-md bg-cyan-600 text-white font-semibold transition flex items-center gap-1";
+        dirBtn.className = "px-2 py-1 rounded-md text-slate-400 hover:text-white transition flex items-center gap-1";
+      } else {
+        dBtn.className = "px-2 py-1 rounded-md text-slate-400 hover:text-white transition flex items-center gap-1";
+        dirBtn.className = "px-2 py-1 rounded-md bg-cyan-600 text-white font-semibold transition flex items-center gap-1";
+      }
+    }
+
+    // 4. Connect SSE Telemetry
+    function connectSSE() {
+      const sessionId = document.getElementById('sessionInput').value.trim() || 'sme_user_001';
+      if (currentEventSource) {
+        currentEventSource.close();
+      }
+
+      const badge = document.getElementById('sseStatusBadge');
+      badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> Connecting...';
+      badge.className = "text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center gap-1";
+
+      currentEventSource = new EventSource(`/api/v1/telemetry/stream?session_id=${sessionId}`);
+
+      currentEventSource.onopen = () => {
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> SSE Connected';
+        badge.className = "text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1";
+      };
+
+      currentEventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleTelemetryEvent(data);
+        } catch (e) {
+          // Heartbeat/ping
+        }
+      };
+
+      currentEventSource.onerror = () => {
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Disconnected';
+        badge.className = "text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center gap-1";
+      };
+    }
+
+    // 5. Handle Telemetry Event
+    function handleTelemetryEvent(evt) {
+      const nodeEl = document.getElementById(`node_${evt.active_node}`);
+      if (nodeEl) {
+        nodeEl.classList.remove('node-active', 'node-success', 'node-error');
+        const dot = nodeEl.querySelector('.node-dot');
+
+        if (evt.node_status === 'PROCESSING') {
+          nodeEl.classList.add('node-active');
+          if (dot) dot.className = "node-dot w-2 h-2 rounded-full bg-cyan-400 animate-ping";
+        } else if (evt.node_status === 'SUCCESS') {
+          nodeEl.classList.add('node-success');
+          if (dot) dot.className = "node-dot w-2 h-2 rounded-full bg-emerald-400";
+        } else if (evt.node_status === 'ERROR') {
+          nodeEl.classList.add('node-error');
+          if (dot) dot.className = "node-dot w-2 h-2 rounded-full bg-rose-400";
+        }
+      }
+
+      if (evt.thought_log) {
+        appendThoughtLog(evt.active_node, evt.node_status, evt.thought_log);
+      }
+
+      if (evt.live_metrics) {
+        if (evt.live_metrics.projected_cash !== null && evt.live_metrics.projected_cash !== undefined) {
+          document.getElementById('metricProjected').textContent = Number(evt.live_metrics.projected_cash).toLocaleString() + ' ฿';
+        }
+        if (evt.live_metrics.runway_days !== null && evt.live_metrics.runway_days !== undefined) {
+          document.getElementById('metricRunway').textContent = evt.live_metrics.runway_days + ' วัน';
+        }
+        if (evt.live_metrics.risk_level) {
+          const riskEl = document.getElementById('metricRisk');
+          riskEl.textContent = evt.live_metrics.risk_level;
+          riskEl.className = evt.live_metrics.risk_level === 'CRITICAL_DEBT_DEFAULT_RISK' ? 'font-bold text-rose-400' : 'font-bold text-emerald-400';
+        }
+      }
+
+      // When COMPLETED event arrives via SSE, render answer and hide countdown
+      if (evt.event === 'COMPLETED' && evt.payload) {
+        hideDebounceProgress();
+        hideTyping();
+        appendBotResponse(evt.payload);
+      }
+    }
+
+    function appendThoughtLog(node, status, text) {
+      const term = document.getElementById('thoughtTerminal');
+      const timeStr = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = "p-1.5 rounded bg-slate-900/60 border border-slate-800/80 leading-relaxed";
+
+      let colorClass = "text-cyan-400";
+      if (status === 'SUCCESS') colorClass = "text-emerald-400";
+      if (status === 'ERROR') colorClass = "text-rose-400";
+
+      div.innerHTML = `
+        <div class="flex items-center justify-between text-[9px] text-slate-500 mb-0.5">
+          <span class="${colorClass} font-bold">[${node}]</span>
+          <span>${timeStr}</span>
+        </div>
+        <div class="text-[10px] text-slate-200">${text}</div>
+      `;
+      term.appendChild(div);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function clearThoughtLogs() {
+      document.getElementById('thoughtTerminal').innerHTML = '<div class="text-slate-500 text-[10px] italic">// Thought logs cleared...</div>';
+    }
+
+    // 6. Handle File Attachment
+    function handleFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      attachedFileObj = file;
+      attachedFileName = file.name;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        attachedBase64 = e.target.result;
+        document.getElementById('fileNameText').textContent = file.name;
+        document.getElementById('filePreviewChip').classList.remove('hidden');
+        document.getElementById('filePreviewChip').classList.add('flex');
+        lucide.createIcons();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeAttachedFile() {
+      attachedFileObj = null;
+      attachedBase64 = null;
+      attachedFileName = null;
+      document.getElementById('imageInput').value = '';
+      document.getElementById('filePreviewChip').classList.remove('flex');
+      document.getElementById('filePreviewChip').classList.add('hidden');
+    }
+
+    // 7. Chat Submit (Handles both Debounce and Direct modes)
+    async function handleChatSubmit(e) {
+      if (e) e.preventDefault();
+      const textInput = document.getElementById('userTextInput');
+      const text = textInput.value.trim();
+      const sessionId = document.getElementById('sessionInput').value.trim() || 'sme_user_001';
+
+      if (!text && !attachedBase64 && !attachedFileObj) return;
+
+      appendUserMessage(text, attachedFileName || null);
+
+      const requestPayload = {
+        user_id: sessionId,
+        content: text,
+        type: (attachedBase64 || attachedFileObj) ? "image" : "text",
+        file_name: attachedFileName,
+        image_base64: attachedBase64
+      };
+
+      const fileToUpload = attachedFileObj;
+      textInput.value = '';
+      removeAttachedFile();
+
+      if (chatMode === 'debounce') {
+        // Mode A: Send to Ingress / Upload Gateway for debouncing & batching
+        startDebounceCountdown();
+        try {
+          let res, data;
+          if (fileToUpload) {
+            // Upload actual physical file via multipart/form-data
+            const formData = new FormData();
+            formData.append('user_id', sessionId);
+            formData.append('file', fileToUpload);
+            formData.append('caption', text);
+            res = await fetch('/api/v1/upload', {
+              method: 'POST',
+              body: formData
+            });
+            data = await res.json();
+          } else {
+            res = await fetch('/api/v1/ingress', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(requestPayload)
+            });
+            data = await res.json();
+          }
+          if (data && data.wait_seconds !== undefined && data.wait_seconds !== serverDebounceSeconds) {
+            updateDebounceUI(data.wait_seconds);
+          }
+          // If Fast-path triggered
+          if (res.status === 200 && data.bypass_llm) {
+            hideDebounceProgress();
+            appendFastPathResponse(data);
+          }
+        } catch (err) {
+          hideDebounceProgress();
+          appendErrorMessage("Upload/Ingress error: " + err.message);
+        }
+      } else {
+        // Mode B: Direct chat endpoint (instant response)
+        showTyping("Master Orchestrator กำลังวิเคราะห์...");
+        try {
+          const res = await fetch('/api/v1/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestPayload)
+          });
+          const data = await res.json();
+          hideTyping();
+          if (data.bypass_llm) {
+            appendFastPathResponse(data);
+          } else if (data.status === 'COMPLETED') {
+            appendBotResponse(data);
+          }
+        } catch (err) {
+          hideTyping();
+          appendErrorMessage("Chat error: " + err.message);
+        }
+      }
+    }
+
+    // 8. Debounce Visual Progress Countdown
+    function startDebounceCountdown(overrideSeconds) {
+      if (overrideSeconds) {
+        updateDebounceUI(overrideSeconds);
+      }
+      debounceCount += 1;
+      debounceTimeLeft = serverDebounceSeconds;
+
+      const container = document.getElementById('debounceProgressContainer');
+      const badge = document.getElementById('debounceCountBadge');
+      const statusText = document.getElementById('debounceStatusText');
+      const bar = document.getElementById('debounceProgressBar');
+
+      container.classList.remove('hidden');
+      badge.textContent = `${debounceCount} ข้อความ`;
+
+      if (debounceCount > 1) {
+        statusText.textContent = `⏳ [Debounce Buffer] รวม ${debounceCount} ข้อความแล้ว! กำลังรวบรวมเพิ่มเติม...`;
+      } else {
+        statusText.textContent = `⏳ [Debounce Buffer] กำลังรอข้อความเพิ่มเติม (${serverDebounceSeconds}s)... หากส่งต่อ ระบบจะรวมบิลให้อัตโนมัติ!`;
+      }
+
+      if (debounceTimer) clearInterval(debounceTimer);
+
+      const totalMs = serverDebounceSeconds * 1000;
+      const intervalMs = 100;
+      let elapsed = 0;
+
+      bar.style.width = '100%';
+
+      debounceTimer = setInterval(() => {
+        elapsed += intervalMs;
+        const remaining = Math.max(0, (totalMs - elapsed) / 1000);
+        const percent = Math.max(0, 100 - (elapsed / totalMs) * 100);
+        bar.style.width = percent + '%';
+
+        if (debounceCount === 1) {
+          statusText.textContent = `⏳ [Debounce Buffer] กำลังรอข้อความเพิ่มเติม (${remaining.toFixed(1)}s)... ส่งต่อได้ทันที!`;
+        }
+
+        if (elapsed >= totalMs) {
+          clearInterval(debounceTimer);
+          debounceTimer = null;
+          statusText.textContent = `🚀 [Debounce Complete] รวม ${debounceCount} ข้อความเรียบร้อย! ส่งเข้า Orchestrator...`;
+          showTyping("กำลังประมวลผลข้อความที่รวบรวมทั้งหมด...");
+        }
+      }, intervalMs);
+    }
+
+    function hideDebounceProgress() {
+      if (debounceTimer) {
+        clearInterval(debounceTimer);
+        debounceTimer = null;
+      }
+      debounceCount = 0;
+      document.getElementById('debounceProgressContainer').classList.add('hidden');
+    }
+
+    // Helper: Test 2 consecutive messages automatically to demonstrate debouncing
+    async function testConsecutiveMessages() {
+      setMode('debounce');
+      document.getElementById('userTextInput').value = "อันนี้บิลค่าซ่อมเครื่องจักรโรงงานครับ";
+      handleChatSubmit();
+
+      setTimeout(() => {
+        document.getElementById('userTextInput').value = "ยอดรวมสุทธิ 95,000 บาท ช่วยดูสภาพคล่องหน่อย";
+        handleChatSubmit();
+      }, 1200);
+    }
+
+    function sendQuickPrompt(promptText) {
+      document.getElementById('userTextInput').value = promptText;
+      handleChatSubmit();
+    }
+
+    // 9. Render Chat Messages
+    function appendUserMessage(text, fileName) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = "flex justify-end gap-2";
+
+      let fileBadge = fileName ? `<div class="mb-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-900/60 border border-cyan-700/60 text-[10px] text-cyan-200"><i data-lucide="image" class="w-3 h-3"></i> ${fileName}</div><br>` : '';
+
+      div.innerHTML = `
+        <div class="max-w-[85%] rounded-2xl rounded-tr-sm bg-gradient-to-r from-cyan-600 to-blue-600 p-3 text-xs text-white leading-relaxed shadow-lg shadow-cyan-600/20">
+          ${fileBadge}
+          <div>${text || 'ส่งภาพเอกสารการเงิน'}</div>
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons();
+    }
+
+    function appendFastPathResponse(data) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = "flex items-start gap-3";
+
+      div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white shrink-0 shadow-md">
+          <i data-lucide="zap" class="w-4 h-4"></i>
+        </div>
+        <div class="max-w-[85%] rounded-2xl rounded-tl-sm bg-slate-900 border border-amber-500/30 p-3 text-xs text-slate-200 leading-relaxed shadow-lg">
+          <div class="flex items-center gap-1.5 text-amber-400 font-bold mb-1">
+            <i data-lucide="zap" class="w-3.5 h-3.5"></i> Fast-Path Router Bypass (< 2ms)
+          </div>
+          <p class="font-semibold text-white text-sm mb-1">${data.title || 'เมนูด่วน'}</p>
+          <p class="text-slate-400 text-[11px] mb-2">${data.phone ? 'เบอร์โทร: ' + data.phone + ' | LINE: ' + data.line_oa : 'ลิงก์เข้าสู่ระบบระบบเว็บพอร์ทัล'}</p>
+          ${data.login_url ? `<a href="${data.login_url}" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-[11px] transition">เปิดหน้าต่าง <i data-lucide="external-link" class="w-3 h-3"></i></a>` : ''}
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons();
+    }
+
+    function appendBotResponse(payload) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = "flex items-start gap-3";
+
+      const cash = payload.cashflow || {};
+      const loans = payload.loans || [];
+      const replyFormatted = (payload.reply_text || '').replace(/\n/g, '<br>');
+
+      let cashflowHtml = '';
+      if (cash.new_income > 0 && (!cash.new_expense || cash.new_expense === 0)) {
+        cashflowHtml = `
+          <div class="mt-2.5 p-2.5 rounded-xl border bg-emerald-950/40 border-emerald-600/60 text-emerald-300 text-[11px] space-y-1.5 shadow-md">
+            <div class="font-semibold flex items-center justify-between text-xs text-emerald-200">
+              <span class="flex items-center gap-1.5"><i data-lucide="arrow-down-left" class="w-4 h-4 text-emerald-400"></i> ตรวจพบยอดเงินเข้า (รายรับ / Inflow)</span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">+${Number(cash.new_income || 0).toLocaleString()} ฿</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1 text-[10px] text-slate-300 pt-1 border-t border-emerald-900/50">
+              <div>เงินสดเดิม: <strong>${Number(cash.current_cash || 0).toLocaleString()} ฿</strong></div>
+              <div>ยอดเงินเข้า: <strong class="text-emerald-400">+${Number(cash.new_income || 0).toLocaleString()} ฿</strong></div>
+              <div>เงินสดคงเหลือใหม่: <strong class="text-emerald-300">${Number(cash.projected_cash || 0).toLocaleString()} ฿</strong></div>
+              <div>Runway: <strong class="text-cyan-300">${cash.runway_days || 0} วัน</strong></div>
+            </div>
+          </div>
+        `;
+      } else if (cash.new_income > 0 && cash.new_expense > 0) {
+        const netPositive = (cash.net_flow !== undefined ? cash.net_flow : (cash.new_income - cash.new_expense)) >= 0;
+        const netVal = cash.net_flow !== undefined ? cash.net_flow : (cash.new_income - cash.new_expense);
+        cashflowHtml = `
+          <div class="mt-2.5 p-2.5 rounded-xl border bg-slate-900 border-cyan-800 text-slate-200 text-[11px] space-y-1.5 shadow-md">
+            <div class="font-semibold flex items-center justify-between text-xs text-cyan-300">
+              <span class="flex items-center gap-1.5"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> สรุปรายการเดินบัญชี (Bank Statement)</span>
+              <span class="px-2 py-0.5 rounded-full ${netPositive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'} text-[10px] font-bold">
+                Net: ${netPositive ? '+' : ''}${Number(netVal).toLocaleString()} ฿
+              </span>
+            </div>
+            <div class="grid grid-cols-2 gap-1 text-[10px] text-slate-300 pt-1 border-t border-slate-800">
+              <div>เงินเข้าสะสม (Deposit): <strong class="text-emerald-400">+${Number(cash.new_income || 0).toLocaleString()} ฿</strong></div>
+              <div>เงินออกสะสม (Withdrawal): <strong class="text-rose-400">-${Number(cash.new_expense || 0).toLocaleString()} ฿</strong></div>
+              <div>เงินสดคงเหลือ: <strong class="text-cyan-300">${Number(cash.projected_cash || 0).toLocaleString()} ฿</strong></div>
+              <div>Runway: <strong class="text-slate-300">${cash.runway_days || 0} วัน</strong></div>
+            </div>
+          </div>
+        `;
+      } else if (cash.new_expense > 0) {
+        const isCrisis = cash.is_liquidity_crisis;
+        const bannerClass = isCrisis ? "bg-rose-950/40 border-rose-800/80 text-rose-300" : "bg-emerald-950/40 border-emerald-800/80 text-emerald-300";
+        const icon = isCrisis ? "alert-triangle" : "check-circle";
+
+        cashflowHtml = `
+          <div class="mt-2.5 p-2.5 rounded-xl border ${bannerClass} text-[11px] space-y-1.5">
+            <div class="font-semibold flex items-center justify-between text-xs">
+              <span class="flex items-center gap-1.5"><i data-lucide="${icon}" class="w-4 h-4"></i> ${isCrisis ? 'วิกฤตสภาพคล่องเงินสดติดลบ' : 'สภาพคล่องปลอดภัย'}</span>
+              <span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold">-${Number(cash.new_expense || 0).toLocaleString()} ฿</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1 text-[10px] text-slate-300 pt-1 border-t border-slate-700/50">
+              <div>เงินสดก่อนจ่าย: <strong>${Number(cash.current_cash || 0).toLocaleString()} ฿</strong></div>
+              <div>ยอดบิลรายจ่าย: <strong>-${Number(cash.new_expense || 0).toLocaleString()} ฿</strong></div>
+              <div>คงเหลือจริง: <strong class="${cash.projected_cash < 0 ? 'text-rose-400' : 'text-emerald-400'}">${Number(cash.projected_cash || 0).toLocaleString()} ฿</strong></div>
+              <div>ขาดสภาพคล่อง: <strong class="text-rose-400">${Number(cash.deficit || 0).toLocaleString()} ฿</strong></div>
+            </div>
+          </div>
+        `;
+      }
+
+      let loansHtml = '';
+      if (loans && loans.length > 0) {
+        loansHtml = `
+          <div class="mt-3 space-y-2">
+            <div class="text-[11px] font-bold text-cyan-300 flex items-center gap-1">
+              <i data-lucide="landmark" class="w-3.5 h-3.5"></i> สินเชื่อ SME แนะนำผ่าน 5-Stage Agentic RAG (${loans.length} รายการ):
+            </div>
+            <div class="space-y-2">
+        `;
+
+        loans.forEach((loan, idx) => {
+          loansHtml += `
+            <div class="p-3 rounded-xl bg-slate-950/80 border border-cyan-800/60 hover:border-cyan-400 transition text-[11px] space-y-1.5 shadow-md">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-semibold text-slate-400">🏦 ${loan.bank || 'สถาบันการเงินพันธมิตร'}</span>
+                <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">ผ่านเกณฑ์ ${loan.approval_probability || 85}%</span>
+              </div>
+              <div class="font-bold text-white text-xs text-cyan-200">${loan.product_name}</div>
+              <div class="grid grid-cols-2 gap-1 text-[10px] text-slate-400">
+                <div>วงเงินสูงสุด: <span class="text-slate-200 font-semibold">${Number(loan.max_limit || 0).toLocaleString()} ฿</span></div>
+                <div>ดอกเบี้ย: <span class="text-slate-200">${loan.interest_rate_text || loan.interest_rate || 'ตามเกณฑ์ธนาคาร'}</span></div>
+              </div>
+              ${loan.recommendation_rationale ? `
+                <div class="p-2 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-300 italic">
+                  💡 <strong>เหตุผลจาก LLM:</strong> "${loan.recommendation_rationale}"
+                </div>
+              ` : ''}
+              <button onclick="handlePostback('action=apply_loan&product_id=${loan.id || 'loan_' + idx}')" class="w-full mt-1.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-[11px] text-center transition flex items-center justify-center gap-1 shadow">
+                <span>สนใจสมัครสินเชื่อนี้</span>
+                <i data-lucide="arrow-right" class="w-3 h-3"></i>
+              </button>
+            </div>
+          `;
+        });
+
+        loansHtml += `</div></div>`;
+      }
+
+      div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-cyan-600 flex items-center justify-center text-white shrink-0 shadow-md shadow-cyan-600/30">
+          <i data-lucide="bot" class="w-4 h-4"></i>
+        </div>
+        <div class="max-w-[85%] rounded-2xl rounded-tl-sm bg-slate-900 border border-slate-800 p-3.5 text-xs text-slate-200 leading-relaxed shadow-lg">
+          <div>${replyFormatted}</div>
+          ${cashflowHtml}
+          ${loansHtml}
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons();
+    }
+
+    function appendErrorMessage(msg) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = "flex items-start gap-3";
+      div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-rose-600 flex items-center justify-center text-white shrink-0 shadow">
+          <i data-lucide="alert-circle" class="w-4 h-4"></i>
+        </div>
+        <div class="max-w-[85%] rounded-2xl bg-rose-950/60 border border-rose-800 p-3 text-xs text-rose-200">
+          ${msg}
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons();
+    }
+
+    function showTyping(msg) {
+      const ind = document.getElementById('typingIndicator');
+      document.getElementById('typingText').textContent = msg || 'AI Multi-Agent กำลังคิดและประมวลผล...';
+      ind.classList.remove('hidden');
+      ind.classList.add('flex');
+    }
+
+    function hideTyping() {
+      const ind = document.getElementById('typingIndicator');
+      ind.classList.remove('flex');
+      ind.classList.add('hidden');
+    }
+
+    async function handlePostback(dataStr) {
+      try {
+        const res = await fetch('/api/v1/postback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: dataStr })
+        });
+        const resData = await res.json();
+        alert(`✅ ส่งข้อมูลสำเร็จ (LINE Postback Webhook):\nAction: ${resData.action}\nProduct ID: ${resData.product_id}`);
+      } catch (e) {
+        alert("Postback error: " + e.message);
+      }
+    }
+  </script>
+</body>
+</html>

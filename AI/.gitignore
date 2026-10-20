@@ -1,0 +1,25 @@
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Conda / Virtual Environments
+venv/
+env/
+ENV/
+
+# OS specific
+.DS_Store
+Thumbs.db
