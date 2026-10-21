@@ -1,3 +1,5 @@
+# Live Demo (Real AI Run) : [Click Here](https://comp.suwapatsu.tech/)
+
 # Flow — SME Finance Copilot
 
 Flow is an SME Finance Copilot consisting of three coordinated services:
@@ -22,6 +24,62 @@ The web UI on port `3000` is the single public entry point (ideal for routing th
    - Fast-Path routing (< 2ms deterministic responses), PII masking, and anti-hallucination guardrails.
 3. **Single Configuration Point**:
    - Configure only one root `.env` file for the entire project. All sub-services (`backend/.env`, `frontend/.env.local`, `AI/.env`) are automatically kept in sync.
+
+---
+
+# AI Architecture
+
+![AI Agent](asset/AI%20Agent.png)
+
+## The Nature of Flow as an Autonomous AI Agent
+
+Flow is not a simple linear chatbot or static retrieval script. It is designed as a **Hybrid-Hierarchical Autonomous Financial Agent** that perceives multi-modal inputs, deliberates through planning loops, invokes specialized domain tools, verifies mathematical invariants, and self-corrects:
+
+- **Autonomous Planning & Deliberation (ReAct Cycle)**: Powered by a local LLM Master Orchestrator (`qwen2.5:3b` / `qwen3:4b`), the agent deliberates on every incoming message to analyze intent, dynamically select tools from its registry (`tool_vision`, `tool_cashflow`, `tool_loan_rag`), extract monetary figures, and compile execution strategies without hardcoded branching.
+- **Two-Tier Ingress & Fast-Path Routing Filter**:
+  - *Tier 1 (Sub-2ms Deterministic Filter)*: Intercepts static system commands and non-financial menu keys (e.g., login links, support contact) in sub-2ms without consuming LLM compute or tokens.
+  - *Tier 2 (Debounce Buffer & Concurrency Lock)*: Automatically batches rapid multi-modal uploads (e.g., users sending 2–3 slip photos and text in rapid succession) within a 3–5 second window with per-user mutex locks to prevent race conditions.
+  - *Thai PII Masking*: Anonymizes sensitive national ID cards, bank account numbers, and phone numbers before any text reaches the LLM.
+- **Hierarchical Dual-Model Architecture**:
+  - *Master Brain (3B/4B)*: Manages high-level reasoning, multi-turn dialogue, tool orchestration, and financial advice synthesis.
+  - *Satellite Worker (1.7B)*: Fast, zero-temperature specialist executing low-latency classification, document metadata parsing, and underwriting rationales.
+- **Specialized Tool Ecosystem**:
+  - 👁️ **Vision Worker**: Integrates real Typhoon OCR API to extract payment slips, tax invoices, and bank statements with a 3-tier duplicate detection engine (image perceptual hashing + exact text + semantic matching).
+  - 💰 **Cashflow Simulation Worker**: Deterministically computes daily burn rates, liquidity runway days, and projected balances with zero-division safety guards.
+  - ⚖️ **Invariant Sanity Guard (Anti-Hallucination)**: 100% Pure-Python algebraic guard verifying that all numbers stated by the LLM strictly adhere to physical financial laws (Projected = Current + Inflow - Outflow, VAT 7%, WHT 3%), vetoing and correcting any arithmetic hallucination.
+  - 🏦 **5-Stage Financial Agentic RAG Worker**: Autonomous underwriter and loan matcher operating over real Bank of Thailand catalog data.
+- **Real-Time Observability & Live Telemetry**: Streams every internal thought, active node state, and execution wire via Server-Sent Events (SSE) directly to the web UI's Multi-Agent Radar.
+- **Interactive UI Compiler**: Formats structured responses into rich interactive visual cards, summary bubbles, and loan carousels.
+
+---
+
+## 5-Stage Agentic RAG Pipeline
+
+![Agentic RAG](asset/Agentic%20RAG.png)
+
+When liquidity deficits or financing inquiries are detected, the agent launches the **5-Stage Financial Agentic RAG Sub-flow**, simulating a human banking credit underwriter through deterministic validation and self-correcting retrieval loops:
+
+1. **Stage 1: Pre-Retrieval Context Synthesis**:
+   - Synthesizes an augmented natural-language query from the customer's live financial profile (monthly gross revenue, existing debt service, DSCR ratio, business age, collateral availability, and current deficit).
+   - Prepares dense vector search representations using `intfloat/multilingual-e5-small` with the `"query: "` prefix without hardcoded if/else rules.
+2. **Stage 2: Dual-Mode In-Memory Hybrid Search (RRF K=60, Latency < 20ms)**:
+   - *Dense Retrieval*: In-memory FAISS (`IndexFlatIP`) computing Cosine Similarity across 384-dimensional semantic embeddings.
+   - *Sparse Retrieval*: `BM25Okapi` performing Thai and English tokenized keyword matching against contextual summary headers.
+   - *Reciprocal Rank Fusion (RRF)*: Merges dense and sparse ranks with constant k=60 to retrieve the Top 5–10 candidate loan products from Thai commercial banks in under 20ms.
+3. **Stage 3: Deterministic Underwriting Guard (Pure Python Grader)**:
+   - Evaluates non-negotiable commercial credit constraints in pure Python code (Zero LLM Hallucination):
+     - Minimum monthly revenue thresholds (e.g., ฿50k – ฿200k)
+     - Minimum operating business age (e.g., 6 months to 2 years)
+     - Maximum borrowing capacity based on monthly revenue
+     - Debt Service Coverage Ratio (DSCR) feasibility
+     - Mandatory collateral or guarantor requirements
+4. **Stage 4: CRAG (Corrective RAG) Self-Correction Recovery Loop**:
+   - *Diagnostic Evaluation*: Checks if at least 2 qualified loan products passed Stage 3.
+   - *Query Relaxation Loop*: If candidates are insufficient due to missing collateral or strict age requirements, CRAG analyzes the rejection diagnostics and triggers dynamic query rewriting to search for alternative unsecured loans, clean loans, or TCG/SME D Bank PGS full-credit guarantee schemes, re-executing Stage 2.
+   - *Deterministic Guard Fallback*: If all standard commercial bank loans are denied (e.g., SME monthly revenue < ฿50,000), the guard strictly prevents hallucinating or recommending unqualified bank loans. Instead, it safely routes to an actionable Micro/Nano Finance advisory and government opportunity fund guidance.
+5. **Stage 5: Live Synthesis & Recommendation**:
+   - The Satellite LLM (`qwen3:1.7b`) synthesizes personalized recommendation rationales tailored specifically to the SME's actual financial ratios.
+   - Formats product terms, starting rates, and credit limits, and compiles an actionable loan application document checklist.
 
 ---
 
