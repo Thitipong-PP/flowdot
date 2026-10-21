@@ -63,9 +63,9 @@ The current HTTP request log does not include the request body, query string, co
 
 ### Current implementation status
 
-The current assistant flow is short: validate a message, run the PII masker, send a request to an OpenAI-compatible endpoint, and extract the text result. The system currently records only the `http_request` event for `POST /api/v1/assistant/chat`. It has no per-step AI event logs, multi-step agent orchestration, or callback contract connected to the team's AI framework. If provider configuration is incomplete, the request returns `503` and still appears in the HTTP log.
+The browser calls the authenticated Node route. Node checks the signed-in customer's profile and financial-data consent, masks the user message, aggregates recent income/expense totals from that customer's saved transactions, and sends a minimized profile context to FastAPI using a server-side bearer token. The transaction collection has no opening cash balance, so `current_cash` is `null`; the AI does not run cashflow or loan calculations that depend on a verified balance. The browser never receives the AI URL or token. FastAPI runs the orchestrator and records each emitted step as JSONL in `AI/.data/logs/ai-activity.jsonl`; the Node HTTP logger records the upstream result and duration. The request ID is passed through to the AI activity log. Missing configuration or an AI timeout returns a sanitized `503` and is logged by Node.
 
-The event schema below is a requirement for a future integration; these events are not emitted by the application today.
+The existing AI step records use `event_id`, `request_id`, `event`, `active_node`, `node_status`, `active_wire`, and latency metadata. They intentionally omit user text, model reasoning, profile data, cash amounts, and response payloads. The schema below remains the target for richer run/step lifecycle reporting and provider metrics.
 
 ### Events the AI adapter should emit
 
@@ -87,7 +87,7 @@ Recommended shared fields for AI events: `timestamp`, `level`, `event`, `request
 
 ### Integration contract for the AI team
 
-The AI adapter should receive an event sink or callback from the backend instead of writing its own unstructured logs. The interface below is framework-agnostic and can be adapted to the team's stack:
+The AI adapter should continue to emit validated activity metadata through a structured event sink instead of writing unstructured logs. The interface below is framework-agnostic and can be adapted to the team's stack:
 
 ```ts
 type AiStepEvent = {

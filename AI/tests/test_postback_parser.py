@@ -29,15 +29,15 @@ def test_build_receipt_card():
 def test_build_loan_carousel():
     sample_loans = [
         {
-            "product_name": "สินเชื่อ บสย. SMEs สร้างไทย",
-            "bank": "ธนาคารพัฒนาวิสาหกิจขนาดกลางและขนาดย่อม",
+            "product_name": "TCG PGS SME Loan",
+            "bank": "SME D Bank",
             "max_limit": 5000000.0,
-            "interest_rate_text": "3.5% ต่อปี",
+            "interest_rate_text": "3.5% p.a.",
             "approval_probability": 85
         },
         {
-            "product_name": "สินเชื่อ SME บัญชีเดียว",
-            "bank": "ธนาคารกสิกรไทย",
+            "product_name": "SME Single Account Loan",
+            "bank": "Kasikornbank",
             "max_limit": 2000000.0,
             "interest_rate_text": "MRR+1.5%",
             "approval_probability": 70
@@ -48,7 +48,7 @@ def test_build_loan_carousel():
     assert carousel["contents"]["type"] == "carousel"
     bubbles = carousel["contents"]["contents"]
     assert len(bubbles) == 2
-    assert "บสย. SMEs สร้างไทย" in str(bubbles[0])
+    assert "TCG PGS SME Loan" in str(bubbles[0])
     assert "85%" in str(bubbles[0])
 
 def test_build_liquidity_alert_card():
@@ -61,4 +61,4 @@ def test_build_liquidity_alert_card():
     )
     assert card["type"] == "flex"
     assert "45,000.00" in str(card)
-    assert "18.5 วัน" in str(card)
+    assert "18.5 days" in str(card)

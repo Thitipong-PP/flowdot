@@ -15,10 +15,15 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Conda / Virtual Environments
+# Virtual Environments
+.venv/
 venv/
 env/
 ENV/
+
+# Data & Uploads
+.data/
+uploads/
 
 # OS specific
 .DS_Store

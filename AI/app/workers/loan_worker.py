@@ -45,13 +45,13 @@ class LoanWorker:
         has_col = bool(profile.get("has_collateral", False))
         dscr = float(ratios.get("dscr", 1.0))
 
-        col_desc = "มีหลักทรัพย์ค้ำประกัน" if has_col else "ไม่มีหลักทรัพย์ค้ำประกัน ต้องการ Clean Loan หรือ บสย. ค้ำประกัน"
+        col_desc = "With collateral" if has_col else "No collateral, requires clean loan or credit guarantee (TCG)"
 
         # Natural Semantic Description formulation
         query = (
-            f"ผู้ประกอบการ SME ดำเนินธุรกิจมาแล้ว {age:.1f} ปี รายได้เดือนละ {rev:,.0f} บาท "
-            f"ขาดสภาพคล่องต้องการสินเชื่อวงเงิน {deficit:,.0f} บาท "
-            f"ความสามารถในการชำระหนี้ DSCR {dscr:.2f} เท่า {col_desc}"
+            f"SME business operating for {age:.1f} years with monthly revenue of {rev:,.0f} THB, "
+            f"facing liquidity deficit and seeking financing of {deficit:,.0f} THB, "
+            f"debt service coverage ratio DSCR {dscr:.2f}x, {col_desc}"
         )
         return query
 
@@ -116,14 +116,14 @@ class LoanWorker:
         age = float(profile.get("business_age_years", 1.0))
 
         # Dynamic query relaxation based on actual diagnostic feedback
-        relaxation_clauses = [f"สินเชื่อ SME ขาดสภาพคล่อง {deficit:,.0f} บาท ดำเนินธุรกิจ {age:.1f} ปี"]
+        relaxation_clauses = [f"SME loan liquidity deficit {deficit:,.0f} THB business operating {age:.1f} years"]
 
         if any("COLLATERAL_REQUIRED" in r for r in rejection_reasons):
-            relaxation_clauses.append("ไม่มีหลักทรัพย์ค้ำประกัน สินเชื่อ Clean Loan บสย. PGS โครงการค้ำประกันเต็มวงเงิน")
+            relaxation_clauses.append("No collateral Clean Loan TCG PGS full credit guarantee program")
         elif any("AGE_BELOW_MINIMUM" in r or "REVENUE_BELOW_MINIMUM" in r for r in rejection_reasons):
-            relaxation_clauses.append(f"รายได้ {rev:,.0f} บาทต่อเดือน สินเชื่อรายย่อย ไมโครไฟแนนซ์ บสย. เกณฑ์ยืดหยุ่น")
+            relaxation_clauses.append(f"Revenue {rev:,.0f} THB monthly micro finance flexible eligibility criteria")
         else:
-            relaxation_clauses.append("สินเชื่อหมุนเวียนระยะสั้น อัตราดอกเบี้ยผ่อนปรน")
+            relaxation_clauses.append("Short term working capital flexible low interest rate")
 
         relaxed_query = " ".join(relaxation_clauses)
         mode_label = "In-Memory FAISS + BM25 (RRF)" if getattr(settings, "RETRIEVAL_MODE", "in_memory") == "in_memory" and self.vector_store.is_warmed_up() else "MongoDB Atlas ($vectorSearch)"
@@ -181,15 +181,15 @@ class LoanWorker:
                 rationale = await self.generate_loan_rationale(p, deficit, ratios, profile)
             else:
                 rationale = (
-                    f"ครอบคลุมยอดขาดสภาพคล่อง {deficit:,.2f} บาท "
-                    f"สอดคล้องกับ DSCR {dscr:.2f} เท่า และรองรับเงื่อนไขธุรกิจ"
+                    f"Covers liquidity deficit of {deficit:,.2f} THB, "
+                    f"aligned with DSCR {dscr:.2f}x and business criteria"
                 )
 
             # Ensure complete checklist of real submission documents
             required_docs = list(p.get("required_documents") or [
-                "ภ.พ.30 ย้อนหลัง 6 เดือน",
-                "Bank Statement ย้อนหลัง 6 เดือน",
-                "สำเนาบัตรประชาชนกรรมการผู้มีอำนาจ"
+                "VAT returns (PP.30) past 6 months",
+                "Bank statements past 6 months",
+                "National ID card copy of authorized directors"
             ])
 
             synthesized.append({
@@ -210,19 +210,19 @@ class LoanWorker:
         ratios: Dict[str, float],
         profile: Dict[str, Any]
     ) -> str:
-        """Calls Satellite Worker LLM (qwen3:1.7b) to generate a live, contextual Thai recommendation."""
+        """Calls Satellite Worker LLM (qwen3:1.7b) to generate a live, contextual recommendation in English."""
         dscr = ratios.get("dscr", 1.2)
-        p_name = product.get("product_name", "สินเชื่อ SME")
-        bank = product.get("bank", "ธนาคาร")
+        p_name = product.get("product_name", "SME Financing")
+        bank = product.get("bank", "Commercial Bank")
 
         print(f"   🤖 [Stage 5: Live Ollama LLM] Requesting live analysis from {settings.OLLAMA_WORKER_MODEL} for '{p_name}' [{bank}]...", flush=True)
 
-        col_status = 'มีหลักทรัพย์ค้ำประกัน' if profile.get('has_collateral') else 'ไม่มีหลักทรัพย์ค้ำประกัน (ใช้ บสย./Clean Loan)'
+        col_status = 'Has collateral' if profile.get('has_collateral') else 'No collateral (TCG guarantee / clean loan)'
         prompt = (
-            f"คุณคือผู้เชี่ยวชาญสินเชื่อธุรกิจ SME กรุณาเขียนคำอธิบายสั้นๆ (1-2 ประโยค) แนะนำผลิตภัณฑ์ '{p_name}' ของ '{bank}' "
-            f"สำหรับร้านค้าที่ขาดสภาพคล่อง {deficit:,.0f} บาท โดยมีรายได้เดือนละ {profile.get('monthly_revenue', 0):,.0f} บาท "
-            f"และค่า DSCR อยู่ที่ {dscr} เท่า สถานะหลักประกัน: {col_status} ห้ามระบุข้อมูลหลักประกันขัดแย้งกับความเป็นจริง "
-            f"ตอบกระชับ เป็นทางการ และตรงจุด"
+            f"You are an SME business financing specialist. Write a concise recommendation (1-2 sentences) for '{p_name}' by '{bank}' "
+            f"for a business facing a liquidity shortfall of {deficit:,.0f} THB with monthly revenue of {profile.get('monthly_revenue', 0):,.0f} THB "
+            f"and DSCR of {dscr:.2f}x. Collateral status: {col_status}. "
+            f"Keep it professional, concise, and direct in English."
         )
         try:
             async with httpx.AsyncClient(timeout=180.0) as client:
@@ -231,7 +231,7 @@ class LoanWorker:
                     json={
                         "model": settings.OLLAMA_WORKER_MODEL,
                         "messages": [
-                            {"role": "system", "content": "คุณคือผู้เชี่ยวชาญวิเคราะห์สินเชื่อ SME ตอบภาษาไทยสุภาพกระชับ ไม่ต้องคิดในแท็ก think ให้ตอบตรงคำตอบทันที"},
+                            {"role": "system", "content": "You are an expert SME loan underwriter. Respond concisely and professionally in English without thought tags."},
                             {"role": "user", "content": prompt}
                         ],
                         "temperature": 0.2,
@@ -248,7 +248,7 @@ class LoanWorker:
             print(f"Loan rationale LLM generation exception ({type(e).__name__}): {e}")
 
         # In case of absolute LLM outage, return factual synthesis
-        return f"อนุมัติเบื้องต้นสอดคล้องกับ DSCR {dscr:.2f} เท่า ครอบคลุมยอดขาดสภาพคล่อง {deficit:,.2f} บาท ของ {bank}"
+        return f"Preliminary match aligned with DSCR {dscr:.2f}x covering {deficit:,.2f} THB deficit from {bank}"
 
     # =========================================================================
     # MASTER 5-STAGE AGENTIC RAG ORCHESTRATION PIPELINE
@@ -361,21 +361,21 @@ class LoanWorker:
 
             advisory_item = {
                 "id": "advisory_nano_micro_finance",
-                "product_name": "ไม่พบผลิตภัณฑ์ที่เข้าเกณฑ์เนื่องจากรายได้ต่ำกว่าเกณฑ์ขั้นต่ำของสถาบันการเงิน",
-                "bank": "คำแนะนำทางเลือกสำหรับธุรกิจรายย่อย",
+                "product_name": "No standard loan products matched due to revenue below threshold",
+                "bank": "Alternative Small Business Advisory",
                 "type": "Micro/Nano Finance Alternative",
-                "interest_rate": "ตามเกณฑ์สถาบันการเงินรายย่อย",
+                "interest_rate": "Subject to microfinance provider terms",
                 "max_limit": 50000.0,
                 "approval_probability": 0,
                 "deficit_covered": 0.0,
                 "recommendation_rationale": (
-                    "ไม่พบผลิตภัณฑ์สินเชื่อที่เข้าเกณฑ์เนื่องจากรายได้ต่ำกว่าเกณฑ์ขั้นต่ำของสถาบันการเงิน "
-                    "ขอแนะนำให้พิจารณาสินเชื่อ Micro Finance / Nano Finance หรือโครงการสินเชื่อสร้างโอกาสรายย่อยจากสถาบันการเงินเฉพาะกิจของรัฐเพื่อเสริมสภาพคล่องเบื้องต้น"
+                    "No standard commercial loan products qualified because business revenue is below minimum underwriting thresholds. "
+                    "We recommend exploring Micro Finance / Nano Finance or state-sponsored SME opportunity funds for initial working capital."
                 ),
                 "required_documents": [
-                    "สำเนาบัตรประจำตัวประชาชน",
-                    "ทะเบียนบ้าน",
-                    "สมุดบัญชีเงินฝากหรือหลักฐานการค้าขายหน้าร้าน"
+                    "National ID card copy",
+                    "House registration document",
+                    "Bank passbook or storefront trading records"
                 ],
                 "flex_carousel_ready": False,
                 "extra_rules": {}

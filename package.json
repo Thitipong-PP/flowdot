@@ -1,12 +1,29 @@
 {
   "name": "flowdot",
   "private": true,
-  "workspaces": ["frontend", "backend"],
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "dev:frontend": "npm run dev --workspace=@flowdot/frontend",
+    "dev": "node scripts/sync-env.js && concurrently -n \"API,AI,WEB\" -c \"cyan,magenta,blue\" \"npm run dev:backend\" \"npm run dev:ai\" \"npm run dev:frontend\"",
+    "build": "npm run seed && npm run build:frontend",
+    "start": "node scripts/sync-env.js && concurrently -n \"API,AI,WEB\" -c \"cyan,magenta,blue\" \"npm run start:backend\" \"npm run start:ai\" \"npm run start:frontend\"",
+    "prod": "npm run build && npm start",
     "dev:backend": "npm run dev --workspace=@flowdot/backend",
+    "dev:frontend": "npm run dev --workspace=@flowdot/frontend",
+    "dev:ai": "node scripts/run-ai.js",
+    "seed": "node scripts/sync-env.js && npm run seed:backend && npm run seed:ai",
+    "seed:backend": "npm run seed --workspace=@flowdot/backend && npm run seed:demo --workspace=@flowdot/backend",
+    "seed:ai": "node scripts/seed-ai.js",
+    "sync:env": "node scripts/sync-env.js",
     "build:frontend": "npm run build --workspace=@flowdot/frontend",
     "start:frontend": "npm run start --workspace=@flowdot/frontend",
-    "start:backend": "npm run start --workspace=@flowdot/backend"
+    "start:backend": "npm run start --workspace=@flowdot/backend",
+    "start:ai": "node scripts/run-ai.js"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
   }
 }

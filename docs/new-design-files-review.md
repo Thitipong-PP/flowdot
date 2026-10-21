@@ -4,7 +4,11 @@ Reviewed on 2026-10-20 against the current `AI/` implementation.
 
 ## Scope
 
-The newly added files are the complete system architecture diagram, the main orchestrator flow, the Agentic RAG subflow, and the input/situation/output matrix. They describe 13 scenario groups, including three duplicate-detection cases.
+The design files are located in [`docs/architecture/`](./architecture/):
+- [`system_architecture_complete.mmd`](./architecture/system_architecture_complete.mmd) — complete system architecture diagram
+- [`main_orchestrator_flow.mmd`](./architecture/main_orchestrator_flow.mmd) — main orchestrator workflow
+- [`agentic_rag_subflow.mmd`](./architecture/agentic_rag_subflow.mmd) — Agentic RAG subflow
+- [`all_cases_input_situation_output_matrix.md`](./architecture/all_cases_input_situation_output_matrix.md) — 13 scenario groups matrix, including duplicate-detection cases
 
 ## Implementation Status
 
@@ -43,12 +47,12 @@ Both JSONL files rotate at 10 MB and retain up to seven backups.
 
 ## Remaining Security and Integration Gaps
 
-1. The Node backend and browser frontend do not currently act as an authenticated gateway to this AI service. Do not place `AI_SERVICE_TOKEN` in browser code. A server-to-server integration with user/session authorization is still required.
+1. The frontend reaches AI only through the authenticated Node backend. It receives prose responses; structured cashflow and loan cards are not currently rendered in the chat. Do not place `AI_SERVICE_TOKEN` in browser code.
 2. The AI bearer token is service-wide, not user-scoped. A token holder can request a telemetry stream by choosing a `session_id`; bind stream access to the authenticated backend user's session before exposing the service beyond localhost.
 3. Text masking does not redact uploaded image pixels. The current OCR flow sends original document images to the configured Typhoon OCR provider. This needs an explicit privacy/consent decision and an image redaction or approved processing workflow before using real customer documents.
 4. The FastAPI service currently has no LINE signature verification or real postback confirmation workflow.
 5. In-memory debounce, SSE subscribers, and retrieval state are process-local and do not scale horizontally without shared infrastructure.
-6. Several fallback business profile values are sample data. Loan outputs must not be presented as verified eligibility or a binding financial offer.
+6. Several fallback business profile values are sample data. The integrated Node path supplies customer-derived context and suppresses cashflow/loan calculations without a verified cash balance. AI service fallback paths must not be presented as verified eligibility or a binding financial offer.
 7. There is no completed consent ledger or purpose-specific PDPA consent flow in the AI service.
 
-The new diagrams and matrix are treated as a target design. They are not evidence that all described scenarios are production-complete.
+The design diagrams and matrix are treated as a target design. They are not evidence that all described scenarios are production-complete.

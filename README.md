@@ -1,107 +1,176 @@
 # Flow — SME Finance Copilot
 
-Flow is a two-service application. The Next.js frontend and Express API run independently and communicate over HTTP. MongoDB stores customer profiles/accounts, financing products, transactions, and support tickets.
+Flow is an SME Finance Copilot consisting of three coordinated services:
+- **`frontend/`**: Next.js App Router application (Unified Web UI & in-app chat on `:3000`)
+- **`backend/`**: Express 5 API with MongoDB models, session auth, validation, and business logic (`:4000`)
+- **`AI/`**: FastAPI headless orchestrator, dual-model local LLM integration, hybrid FAISS vector retrieval, and financial workers (`:8000`)
 
-## Project layout
+The web UI on port `3000` is the single public entry point (ideal for routing through Cloudflare Tunnel for competition submission). All internal API calls are proxied securely to the Node API (`:4000`), which communicates with the FastAPI AI service (`:8000`) via protected server-to-server bearer tokens. Both services share a single unified MongoDB database (`flowdot`).
+
+---
+
+## Key Features
+
+1. **Unified Web Experience (Port 3000)**:
+   - Single, polished web application containing both the Customer Finance Copilot and the Operations Admin Console.
+   - **Multi-Agent Live Execution Radar**: Visualizes in real time the 6 worker nodes (*Ingress & Router*, *Vision OCR*, *Cashflow Worker*, *Invariant Guard*, *5-Stage Agentic RAG*, *Response Compiler*).
+   - **Real-Time Thought Stream Terminal**: Monospace streaming terminal showing deterministic step-by-step agent deliberations.
+   - **Live Financial Diagnostics**: Instant visibility into projected cash balance, runway days, and risk tier.
+   - **Quick Scenario Action Chips**: 1-click test scenarios for competition judges (e.g., 🚨 Urgent ฿95k repair bill, ✅ ฿15k supply invoice, 💬 Service intro, 🏦 SME loan search).
+2. **Headless AI Subsystem**:
+   - Pure headless backend logic with zero standalone web templates or redundant web servers.
+   - Fast-Path routing (< 2ms deterministic responses), PII masking, and anti-hallucination guardrails.
+3. **Single Configuration Point**:
+   - Configure only one root `.env` file for the entire project. All sub-services (`backend/.env`, `frontend/.env.local`, `AI/.env`) are automatically kept in sync.
+
+---
+
+## Project Layout
 
 ```text
-frontend/   Next.js App Router application
-backend/    Express 5 API, MongoDB models, validation, and business services
+├── .env                  Single central configuration file for all services
+├── frontend/             Next.js App Router unified web client (:3000)
+├── backend/              Express 5 API & MongoDB models (:4000)
+├── AI/                   FastAPI headless AI orchestrator & retrieval (:8000)
+├── docs/                 Project documentation, security, and architecture
+│   ├── architecture/     System diagrams, workflows, and test case matrices
+│   └── references/       Design templates and onboarding domain data
+├── scripts/              Cross-platform runners, seeders, and env synchronizer
+├── compose.yaml          Docker Compose configuration for local MongoDB
+└── package.json          Root workspace scripts and unified task runner
 ```
+
+---
 
 ## Requirements
 
-- Node.js 20.9 or newer
-- npm 10 or newer
-- MongoDB 7 or a MongoDB Atlas connection string
+- **Node.js** 20.9 or newer & **npm** 10 or newer
+- **Python** 3.11 or newer (for the AI service)
+- **MongoDB** 7 (local service or via `docker compose up -d mongodb`)
+- *(Optional)* **Ollama** with models `qwen2.5:3b` and `qwen3:1.7b` for local AI inference
 
-## Install
+---
+
+## Quick Start (Unified Setup)
+
+### 1. Install Dependencies
 
 From the repository root:
 
 ```bash
+# Install Node workspaces
 npm install
+
+# Setup Python virtual environment for the AI service
+python -m venv AI/.venv
+
+# Windows:
+.\AI\.venv\Scripts\pip install -r AI/requirements.txt
+# Linux / macOS:
+# ./AI/.venv/bin/pip install -r AI/requirements.txt
 ```
 
-## Configure MongoDB and start the API
+### 2. Configure Environment (Single Place)
+
+Copy the central environment file:
 
 ```bash
-cp backend/.env.example backend/.env
+cp .env.example .env
 ```
 
-For a local database, start MongoDB with Docker Compose:
+All configurations (database URIs, ports, service tokens, demo credentials) live in this single `.env` file. Running `npm run dev`, `npm start`, or `npm run seed` will automatically propagate settings to `backend/.env`, `frontend/.env.local`, and `AI/.env`.
+
+### 3. Start MongoDB
+
+If MongoDB is installed locally as a Windows service, it runs automatically. Alternatively, start it via Docker Compose:
 
 ```bash
 docker compose up -d mongodb
 ```
 
-The example URI in `backend/.env.example` connects to that local MongoDB instance. Set `AUTH_SECRET` to at least 32 random characters, plus `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD`. You can replace `MONGODB_URI` with a MongoDB Atlas URI. Then start the API:
+### 4. Seed Database (One Command)
+
+Seed backend demo accounts, sample transactions, financing products, and the AI loan catalog embeddings simultaneously:
 
 ```bash
-npm run dev:backend
+npm run seed
 ```
 
-The API listens on `http://localhost:4000`. Its health endpoint is `GET /api/health`.
-Stop the local database with `docker compose down` (the named volume keeps its data).
+*(You only need to run this once or whenever you want to reset demo data).*
 
-### Inspect MongoDB
+---
 
-The default local connection uses database `flowdot`. Open MongoDB Compass and connect to:
+## How to Run
 
-```text
-mongodb://127.0.0.1:27017/flowdot
-```
+### Development & Testing (Hot Reload)
 
-Collections are created when data is first written: `customerprofiles`, `useraccounts`, `financingproducts`, `transactions`, and `supporttickets`. Alternatively, with `mongosh` installed, run `mongosh "mongodb://127.0.0.1:27017/flowdot"`, then use `show collections` and `db.customerprofiles.find().pretty()`.
-
-MongoDB must be running first. With Docker installed, `docker compose up -d mongodb` starts it. To use another local or Atlas database, change `MONGODB_URI` in `backend/.env` and restart the backend.
-
-## Start the frontend
-
-On first setup, create the local frontend env file, then start the frontend in another terminal:
+For active testing and quick changes:
 
 ```bash
-cp frontend/.env.example frontend/.env.local
-npm run dev:frontend
+npm run dev
 ```
 
-The web app listens on `http://localhost:3000`. Edit `frontend/.env.local` if the API is hosted somewhere other than `http://localhost:4000/api/v1`. `NEXT_PUBLIC_API_URL` is a Next.js public build variable; restart the dev server after changing it, and rebuild/redeploy in production.
+This starts all 3 services concurrently in development mode:
+- **Unified Frontend UI**: `http://localhost:3000`
+- **Backend API**: `http://localhost:4000` (Health: `GET /api/health`)
+- **AI Subsystem**: `http://127.0.0.1:8000` (Health: `GET /health`)
 
-## API routes
+---
 
-- `POST /api/v1/auth/register` — create a customer profile/account and sign in; requires financial-data consent.
-- `POST /api/v1/auth/login`, `GET /api/v1/auth/session`, `POST /api/v1/auth/logout` — manage a signed session.
-- `GET/PATCH /api/v1/customers/me` — read or update the current customer profile.
-- `GET /api/v1/customers/me/dashboard` — transaction totals and recent activity.
-- `GET /api/v1/customers` and `GET /api/v1/customers/:customerId` — admin-only customer management.
-- `GET /api/v1/financing/products` — list active financing products.
-- `POST /api/v1/financing/recommendations` — match products to the signed-in customer's stored profile.
-- `GET/POST /api/v1/transactions` — list or record the current customer's income/expenses.
-- `POST /api/v1/support/tickets` and `GET /api/v1/support/tickets?status=open` — submit and list own tickets; admins can list all.
-- `PATCH /api/v1/support/tickets/:ticketId` — update ticket status; admin role required.
-- `POST /api/v1/assistant/chat` — send a message to a configured model after backend PII masking.
+### Final Production Version (For Competition & Turn-in)
 
-Authentication uses `POST /api/v1/auth/register` and `/api/v1/auth/login`, with an HttpOnly signed session cookie. Admin routes require a signed-in account with the admin role. Customer profile, transaction, dashboard, and support-ticket reads are scoped to the signed-in customer.
-
-Seed the lender product examples, demo accounts, sample transactions, and a support ticket into the local database:
+To run the final version with 1 single command in 1 terminal:
 
 ```bash
-npm run seed --workspace=@flowdot/backend
-npm run seed:demo --workspace=@flowdot/backend
+npm run prod
 ```
 
-The development admin and customer email/password values are in the ignored local file `backend/.env`. They are generated for this checkout; use new secrets before exposing the service to anyone else.
+This automated all-in-one command will:
+1. Seed the database (`npm run seed`) with demo accounts, transactions, and vector embeddings.
+2. Build the optimized Next.js frontend (`npm run build:frontend`).
+3. Start all 3 services concurrently (`npm start`) in production mode.
 
-Every completed HTTP response is written as one JSON line to `backend/.data/logs/YYYY-MM-DD.jsonl`, including successful responses and 4xx/5xx/503 statuses. Logs contain method, path, status, request ID, and duration; they do not contain request bodies, cookies, or authorization headers. The log folder is ignored by Git. AI step-level events are not emitted yet; see the logging document for the proposed team integration contract.
+This starts:
+- Frontend on `http://localhost:3000` running optimized static + SSR production build (`next start`)
+- Backend API on `http://localhost:4000` in production mode
+- AI Headless Subsystem on `http://127.0.0.1:8000`
 
-The assistant route requires an OpenAI-compatible endpoint configured with `LLM_API_URL`, `LLM_API_KEY`, and `LLM_MODEL`. The backend PII masking boundary runs before any provider request. When these values are missing, chat returns HTTP 503 instead of a simulated answer. Do not configure a provider until its data-processing terms are approved for the financial information this app handles.
+---
 
-The complete OpenAPI 3.1 API contract is in [`backend/openapi.yaml`](backend/openapi.yaml). Import it into Swagger Editor, Postman, or Insomnia to explore the request and response schemas.
+## Pre-seeded Accounts & Quick Login
 
-Security, permission tiers, current request-log fields, and the proposed AI step-event contract are documented in [`docs/permission-and-audit-logging.md`](docs/permission-and-audit-logging.md). The current implementation writes one HTTP completion record per response; per-step AI events are a documented integration requirement and are not emitted yet.
+In the web UI at `http://localhost:3000`, open the login modal and click either **⚡ Demo SME** or **🛡️ Admin Demo** for 1-click instant credential filling:
 
-The current source/configuration self-assessment, known risks, and recommended production remediation are in [`docs/security-self-assessment.md`](docs/security-self-assessment.md). This is an initial code review, not a penetration test or compliance certification.
+- **Demo Customer**:
+  - Email: `customer@example.com`
+  - Password: `Customer12345678!`
+- **Admin**:
+  - Email: `admin@example.com`
+  - Password: `Admin12345678!`
 
-The seeded lender products, demo customer, example transactions, and ticket are sample data. Replace product terms with verified lender data before production use. The app currently supports real registration/login, profile updates, database-backed recommendations, transaction entry and summaries, support-ticket submission, and role-protected admin customer/ticket views. The chat panel is an in-app preview; no LINE webhook or messages are connected.
+---
 
-Receipt image upload/OCR, actual bank transaction imports, loan applications, password reset, email verification, MFA, and production identity/role administration are not implemented. The chat UI is connected to the assistant endpoint, but will show 503 until a provider is configured. PII masking uses pattern-based detection and cannot guarantee detection of every name or identifier in free text. Authentication rate limiting is in-memory per process; local JSONL logs have no automatic retention/rotation. Before production, deploy behind HTTPS, add distributed rate limiting and log rotation/monitoring, backups, retention rules, and a formal privacy/security review.
+## Cloudflare Tunnel Setup (For Competition Submission)
+
+Because the Next.js frontend on port `3000` internally proxies `/api/*` to the backend, you only need to expose **port 3000**:
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+Use the generated `*.trycloudflare.com` URL as your public submission link.
+
+---
+
+## API & Architecture Reference
+
+- **OpenAPI Specification**: [`backend/openapi.yaml`](backend/openapi.yaml)
+- **Architecture & Workflow Diagrams**:
+  - [System Architecture](docs/architecture/system_architecture_complete.mmd)
+  - [Main Orchestrator Flow](docs/architecture/main_orchestrator_flow.mmd)
+  - [Agentic RAG Subflow](docs/architecture/agentic_rag_subflow.mmd)
+  - [Input / Situation / Output Matrix](docs/architecture/all_cases_input_situation_output_matrix.md)
+- **Security & Audit**:
+  - [Permission & Audit Logging](docs/permission-and-audit-logging.md)
+  - [Security Self-Assessment](docs/security-self-assessment.md)
+  - [Design Coverage Review](docs/new-design-files-review.md)

@@ -1,5 +1,5 @@
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1').replace(/\/$/, '');
-const apiOrigin = apiBaseUrl.replace(/\/api\/v1$/, '');
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? '/api/v1').replace(/\/$/, '');
+const apiOrigin = apiBaseUrl.startsWith('http') ? apiBaseUrl.replace(/\/api\/v1$/, '') : '';
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -23,10 +23,16 @@ export type SessionAccount = {
   profile: { id: string; firstName: string; lastName: string; phone: string; businessName: string; industry: string } | null;
 };
 
+export type ServiceHealth = {
+  status: string;
+  database: string;
+  assistant: 'reachable' | 'not_configured' | 'unavailable';
+};
+
 export function getServiceHealth() {
   return fetch(`${apiOrigin}/api/health`, { cache: 'no-store' }).then(async (response) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error?.message ?? `Health check failed (${response.status}).`);
-    return result.data as { status: string; database: string; assistant: string };
+    return result.data as ServiceHealth;
   });
 }

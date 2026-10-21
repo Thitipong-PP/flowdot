@@ -25,25 +25,25 @@ class FastPathRouter:
     STATIC_ROUTES = {
         "menu_login": {
             "bypass_llm": True,
-            "title": "เข้าสู่ระบบ SME Web Portal",
+            "title": "SME Web Portal Sign-In",
             "action": "open_url",
             "login_url": "https://app.sme-copilot.com/login"
         },
         "menu_manage_account": {
             "bypass_llm": True,
-            "title": "ตั้งค่าบัญชีผู้ใช้",
+            "title": "User Account Settings",
             "action": "open_url",
             "settings_url": "https://app.sme-copilot.com/settings"
         },
         "menu_faq": {
             "bypass_llm": True,
-            "title": "คำถามที่พบบ่อย (FAQ)",
+            "title": "Frequently Asked Questions (FAQ)",
             "action": "open_url",
             "help_url": "https://app.sme-copilot.com/help"
         },
         "menu_contact": {
             "bypass_llm": True,
-            "title": "ติดต่อเจ้าหน้าที่ฝ่ายบริการ",
+            "title": "Customer Support Center",
             "action": "contact_support",
             "phone": "02-123-4567",
             "line_oa": "@sme-finance-copilot"
@@ -51,16 +51,18 @@ class FastPathRouter:
     }
 
     FAST_ANCHORS = {
-        "menu_login": ["ล็อกอิน", "login", "เข้าสู่ระบบ", "เข้าระบบ", "ขอลิงก์ล็อกอิน", "sign in", "signin"],
-        "menu_manage_account": ["ตั้งค่าบัญชี", "จัดการบัญชี", "เปลี่ยนรหัสผ่าน", "แก้ไขโปรไฟล์", "account settings"],
-        "menu_faq": ["คำถามที่พบบ่อย", "วิธีใช้งานระบบ", "คู่มือการใช้งาน", "faq"],
-        "menu_contact": ["ติดต่อเจ้าหน้าที่", "คอลเซ็นเตอร์", "call center", "ขอเบอร์โทร", "เบอร์โทรศัพท์", "ติดต่อแอดมิน", "ติดต่อฝ่ายบริการ", "คุยกับเจ้าหน้าที่"]
+        "menu_login": ["login", "sign in", "signin", "portal", "link to login", "ล็อกอิน", "เข้าสู่ระบบ", "เข้าระบบ", "ขอลิงก์ล็อกอิน"],
+        "menu_manage_account": ["account settings", "manage account", "change password", "edit profile", "manage profile", "profile settings", "user settings", "ตั้งค่าบัญชี", "จัดการบัญชี", "เปลี่ยนรหัสผ่าน", "แก้ไขโปรไฟล์", "จัดการโปรไฟล์"],
+        "menu_faq": ["faq", "frequently asked questions", "user guide", "manual", "help guide", "คำถามที่พบบ่อย", "วิธีใช้งานระบบ", "คู่มือการใช้งาน"],
+        "menu_contact": ["contact support", "call center", "phone number", "admin", "customer service", "helpdesk", "contact us", "ติดต่อเจ้าหน้าที่", "คอลเซ็นเตอร์", "ขอเบอร์โทร", "เบอร์โทรศัพท์", "ติดต่อแอดมิน", "ติดต่อฝ่ายบริการ", "คุยกับเจ้าหน้าที่"]
     }
 
     FINANCIAL_INDICATORS = [
-        "สลิป", "ใบเสร็จ", "ใบแจ้งหนี้", "ภาษี", "vat", "หัก ณ ที่จ่าย", "wht",
-        "ขาดสภาพคล่อง", "สินเชื่อ", "กู้เงิน", "dscr", "วิเคราะห์", "รายได้", "รายจ่าย",
-        "งบการเงิน", "ยอดเงิน", "โอนเงิน", "statement"
+        "slip", "receipt", "invoice", "bill", "tax", "vat", "wht", "liquidity", "loan", "borrow", "credit", "dscr",
+        "analysis", "income", "expense", "burn rate", "financials", "balance", "transfer", "statement",
+        "financing", "finance", "financial", "fund", "funding", "capital", "interest", "rate",
+        "สลิป", "ใบเสร็จ", "ใบแจ้งหนี้", "ภาษี", "หัก ณ ที่จ่าย", "ขาดสภาพคล่อง", "สินเชื่อ", "กู้เงิน", "กู้",
+        "วิเคราะห์", "รายได้", "รายจ่าย", "งบการเงิน", "ยอดเงิน", "โอนเงิน", "เงินทุน", "แหล่งเงินทุน", "การเงิน"
     ]
 
     # =========================================================================
@@ -121,17 +123,17 @@ class FastPathRouter:
         t0 = time.perf_counter()
 
         # Prompt with strict constraint enforcement
-        prompt = f"""คุณเป็น AI คัดแยกเจตนาข้อความของผู้ใช้งาน SME
-จงวิเคราะห์ว่าข้อความต่อไปนี้ สื่อเจตนาตรงกับ Fast-Path เมนูใดหรือไม่:
-1. "menu_login": ต้องการเข้าสู่ระบบ, ล็อกอิน, ขอลิงก์เข้าใช้งาน SME Web Portal
-2. "menu_manage_account": ต้องการตั้งค่าบัญชี, เปลี่ยนรหัสผ่าน, จัดการข้อมูลส่วนตัว
-3. "menu_faq": ต้องการดูคำถามที่พบบ่อย, คู่มือการใช้งานเบื้องต้น, FAQ
-4. "menu_contact": ต้องการติดต่อเจ้าหน้าที่, ขอเบอร์โทรศัพท์, คอลเซ็นเตอร์, แอดมิน
-5. "orchestrate": คำถามเรื่องการเงิน, วิเคราะห์รายรับรายจ่าย, สลิปโอนเงิน, ใบเสร็จ/ใบแจ้งหนี้, สินเชื่อ SME, ขาดสภาพคล่อง, กู้เงิน หรือเรื่องอื่นๆ ที่ต้องให้ระบบคิดวิเคราะห์
+        prompt = f"""You are an AI intent classifier for SME business users.
+Analyze whether the following user message matches any Fast-Path menu:
+1. "menu_login": Wants to log in, sign in, or get a link to SME Web Portal
+2. "menu_manage_account": Wants account settings, change password, or manage profile
+3. "menu_faq": Wants to see FAQ, help guide, or user manual
+4. "menu_contact": Wants to contact support, call center, customer service, or admin
+5. "orchestrate": Financial questions, revenue/expense analysis, payment slips, bills/invoices, SME loans, liquidity deficit, borrowing, or anything requiring calculation/deliberation
 
-ข้อความผู้ใช้: "{user_text}"
+User message: "{user_text}"
 
-ตอบเป็น JSON รูปแบบเดียวเท่านั้น:
+Respond ONLY with JSON format:
 {{"intent": "menu_login" | "menu_manage_account" | "menu_faq" | "menu_contact" | "orchestrate", "confidence": 0.0-1.0}}"""
 
         try:
@@ -144,9 +146,9 @@ class FastPathRouter:
                             {
                                 "role": "system",
                                 "content": (
-                                    "คุณคือตัวคัดแยกเจตนา ตอบเฉพาะ JSON รูปแบบ "
-                                    '{"intent": "...", "confidence": ...} เท่านั้น ห้ามใส่คำบรรยายอื่น '
-                                    "ห้ามคิดในแท็ก <think> หรือแสดงความคิดเห็นใดๆ"
+                                    "You are an intent classifier. Respond ONLY with JSON format "
+                                    '{"intent": "...", "confidence": ...}. Do not include markdown, '
+                                    "explanations, or <think> tags."
                                 )
                             },
                             {"role": "user", "content": prompt}

@@ -128,3 +128,243 @@ button:disabled{opacity:.62;cursor:not-allowed}
   .feature-rail small{font-size:9px;line-height:1.4}
   .page-footer{font-size:9px;line-height:1.5}
 }
+
+/* ==========================================================================
+   Merged AI Multi-Agent Radar, Metrics & Terminal Styles
+   ========================================================================== */
+.quick-chips-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px 12px;
+  background: #f8faf9;
+  border-bottom: 1px solid #eef2f0;
+  scrollbar-width: none;
+}
+.quick-chips-bar::-webkit-scrollbar { display: none; }
+.quick-chip {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 1px solid #dbe3df;
+  color: #334155;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+}
+.quick-chip:hover {
+  border-color: #1ba583;
+  color: #0f766e;
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+.quick-chip.danger:hover {
+  border-color: #f43f5e;
+  color: #be123c;
+  background: #fff1f2;
+}
+
+/* Radar Grid */
+.radar-card {
+  background: #ffffff;
+  border: 1px solid #e5eae7;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(20, 45, 35, 0.04);
+  margin-bottom: 16px;
+}
+.radar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.radar-head h3 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.radar-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.radar-badge.busy {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+.radar-badge i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+.radar-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.radar-node {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.radar-node-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.radar-node-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+.radar-node-desc {
+  font-size: 9px;
+  color: #64748b;
+  line-height: 1.3;
+}
+.radar-node-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+.radar-node.active {
+  background: #f0fdf4;
+  border-color: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
+  transform: translateY(-1px);
+}
+.radar-node.active .radar-node-name {
+  color: #15803d;
+}
+.radar-node.active .radar-node-dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.7; }
+}
+
+/* Financial Diagnostics Card */
+.diag-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  background: #111827;
+  border-radius: 12px;
+  padding: 12px;
+  color: #f9fafb;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+.diag-metric {
+  text-align: center;
+}
+.diag-metric small {
+  display: block;
+  font-size: 9px;
+  color: #9ca3af;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+.diag-metric b {
+  display: block;
+  font-size: 13px;
+  font-family: monospace;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+.diag-metric.safe b { color: #34d399; }
+.diag-metric.warn b { color: #fbbf24; }
+.diag-metric.danger b { color: #f87171; }
+
+/* Thought Stream Terminal */
+.terminal-card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+.terminal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #0b1120;
+  border-bottom: 1px solid #1e293b;
+}
+.terminal-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+}
+.terminal-clear {
+  background: none;
+  border: none;
+  font-size: 9px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.terminal-clear:hover { color: #cbd5e1; }
+.terminal-body {
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  font-family: monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+.terminal-line {
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+.terminal-time {
+  color: #64748b;
+  margin-right: 6px;
+}
+.terminal-tag {
+  color: #38bdf8;
+  font-weight: 700;
+  margin-right: 5px;
+}
+.terminal-tag.guard { color: #a78bfa; }
+.terminal-tag.cashflow { color: #34d399; }
+.terminal-tag.rag { color: #fb923c; }
+.terminal-empty {
+  color: #475569;
+  font-style: italic;
+}

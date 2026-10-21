@@ -1,6 +1,11 @@
+import sys
 import asyncio
 from datetime import datetime, timezone
 from typing import List, Dict, Any
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from sentence_transformers import SentenceTransformer
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import settings
@@ -11,7 +16,7 @@ RAW_LOAN_POLICIES: List[Dict[str, Any]] = [
         "id": "loan_od_01",
         "bank": "Kasikornbank",
         "product_name": "KBANK SME Quick OD Limit",
-        "content": "Kasikornbank SME Quick OD Limit วงเงินเบิกเกินบัญชีสำหรับเสริมสภาพคล่องฉุกเฉิน หมุนเวียนระยะสั้น จ่ายดอกเบี้ยตามจริงที่ใช้ อัตราดอกเบี้ย MRR + 2.5%",
+        "content": "Kasikornbank SME Quick OD Limit - Overdraft facility for emergency liquidity and short-term working capital. Pay interest only on drawn funds at MRR + 2.5%.",
         "type": "OD",
         "interest_rate": "MRR + 2.5%",
         "max_limit": 5000000.0,
@@ -21,17 +26,17 @@ RAW_LOAN_POLICIES: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "ภ.พ.30 ย้อนหลัง 6 เดือน",
-            "Bank Statement ย้อนหลัง 6 เดือน",
-            "หนังสือรับรองบริษัท (อายุไม่เกิน 3 เดือน)"
+            "VAT returns (PP.30) past 6 months",
+            "Bank statements past 6 months",
+            "Company registration certificate (within 3 months)"
         ]
     },
     {
         "id": "loan_pgs_02",
         "bank": "SME D Bank",
-        "product_name": "สินเชื่อ บสย. PGS ค้ำประกันเต็มวงเงิน",
-        "content": "SME D Bank สินเชื่อ บสย. PGS โครงการค้ำประกันสินเชื่อเพื่อผู้ประกอบการที่ขาดหลักประกัน Clean Loan รัฐบาลสนับสนุนค่าธรรมเนียมค้ำประกัน",
-        "type": "บสย. PGS",
+        "product_name": "TCG PGS Full Credit Guarantee Loan",
+        "content": "SME D Bank TCG PGS Loan - Credit guarantee program for SMEs lacking physical collateral. Clean loan supported by Thai Credit Guarantee Corporation with government subsidized guarantee fee.",
+        "type": "TCG PGS",
         "interest_rate": "MLR - 1.0%",
         "max_limit": 3000000.0,
         "extra_rules": {
@@ -40,18 +45,18 @@ RAW_LOAN_POLICIES: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "สำเนาบัตรประชาชนกรรมการผู้มีอำนาจ",
-            "หนังสือยินยอมให้ บสย. ตรวจสอบข้อมูล",
-            "Bank Statement ย้อนหลัง 6 เดือน"
+            "National ID card copy of authorized directors",
+            "Consent letter for TCG credit verification",
+            "Bank statements past 6 months"
         ]
     },
     {
         "id": "loan_factoring_03",
         "bank": "Krungsri",
         "product_name": "Krungsri Invoice Factoring Express",
-        "content": "Krungsri Factoring รับซื้อหนี้การค้า เปลี่ยนใบแจ้งหนี้เป็นเงินสดทันที รับเงินล่วงหน้าสูงสุด 85-90% เหมาะสำหรับธุรกิจ B2B ที่รอเก็บเงินลูกค้า",
+        "content": "Krungsri Factoring - Accounts receivable factoring. Convert unpaid customer invoices into immediate cash up to 85-90% advance rate. Ideal for B2B trade awaiting payment collections.",
         "type": "Factoring",
-        "interest_rate": "6.5% ต่อปี",
+        "interest_rate": "6.5% p.a.",
         "max_limit": 10000000.0,
         "extra_rules": {
             "min_revenue": 80000.0,
@@ -59,16 +64,16 @@ RAW_LOAN_POLICIES: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "สำเนาใบแจ้งหนี้ / ใบกำกับภาษี / ใบส่งของ",
-            "สัญญาการค้ากับคู่ค้า (Trade Contract)",
-            "Bank Statement ย้อนหลัง 3 เดือน"
+            "Invoice copies / tax invoices / delivery orders",
+            "Trade contract with corporate buyer",
+            "Bank statements past 3 months"
         ]
     },
     {
         "id": "loan_clean_04",
         "bank": "SCB",
-        "product_name": "SCB SME Clean Loan สบายใจ",
-        "content": "SCB สินเชื่อธุรกิจไม่มีหลักทรัพย์ค้ำประกัน Clean Loan ดอกเบี้ยพิเศษ ไม่ต้องใช้ที่ดินหรือเงินฝากค้ำ อนุมัติไวภายใน 3 วันทำการ",
+        "product_name": "SCB SME Clean Loan",
+        "content": "SCB Unsecured SME Clean Loan with competitive interest rates. No land, property, or fixed deposit collateral required. Fast approval within 3 business days.",
         "type": "Clean Loan",
         "interest_rate": "MRR + 3.0%",
         "max_limit": 2000000.0,
@@ -78,16 +83,16 @@ RAW_LOAN_POLICIES: List[Dict[str, Any]] = [
             "requires_collateral": False
         },
         "required_documents": [
-            "งบการเงินย้อนหลัง 1 ปี",
-            "ภ.พ.30 ย้อนหลัง 6 เดือน",
-            "Bank Statement ย้อนหลัง 6 เดือน"
+            "Financial statements past 1 year",
+            "VAT returns (PP.30) past 6 months",
+            "Bank statements past 6 months"
         ]
     },
     {
         "id": "loan_secured_05",
         "bank": "Bangkok Bank",
-        "product_name": "BBL บัวหลวงพารวย (ใช้หลักประกัน)",
-        "content": "Bangkok Bank BBL สินเชื่อขยายกิจการ ใช้ที่ดิน อาคารพาณิชย์ หรือสิ่งปลูกสร้างค้ำประกัน ดอกเบี้ยต่ำพิเศษ วงเงินสูงสุด 30 ล้านบาท ผ่อนนานสูงสุด 10 ปี",
+        "product_name": "BBL Bualuang Prosperity Loan (Secured)",
+        "content": "Bangkok Bank BBL Business Expansion Loan secured by commercial property, land, or buildings. Prime low interest rates, up to 30 million THB credit limit, and repayment tenor up to 10 years.",
         "type": "Secured Loan",
         "interest_rate": "MRR + 1.25%",
         "max_limit": 30000000.0,
@@ -97,28 +102,28 @@ RAW_LOAN_POLICIES: List[Dict[str, Any]] = [
             "requires_collateral": True
         },
         "required_documents": [
-            "โฉนดที่ดิน / สำเนาหลักทรัพย์ค้ำประกัน",
-            "งบการเงินย้อนหลัง 3 ปี",
-            "ภ.พ.30 และ Statement ย้อนหลัง 12 เดือน"
+            "Land title deed / copy of collateral ownership deeds",
+            "Financial statements past 3 years",
+            "VAT returns (PP.30) and Bank statements past 12 months"
         ]
     }
 ]
 
 async def seed_loan_products():
-    print("🚀 [1/3] Loading Embedding Model: intfloat/multilingual-e5-small...")
+    print("[1/3] Loading Embedding Model: intfloat/multilingual-e5-small...")
     model = SentenceTransformer("intfloat/multilingual-e5-small")
 
-    print(f"📡 [2/3] Connecting to MongoDB Atlas ({settings.MONGO_DB_NAME})...")
+    print(f"[2/3] Connecting to MongoDB Atlas ({settings.MONGO_DB_NAME})...")
     client = AsyncIOMotorClient(settings.MONGO_URI, serverSelectionTimeoutMS=10000)
     db = client[settings.MONGO_DB_NAME]
     collection = db["loan_products"]
 
-    print("⚡ [3/3] Generating 384-dimensional Embeddings & Upserting to Atlas...")
+    print("[3/3] Generating 384-dimensional Embeddings & Upserting to Atlas...")
     now = datetime.now(timezone.utc)
 
     for p in RAW_LOAN_POLICIES:
         # Standard E5 document ingestion prefix: 'passage: '
-        passage_text = f"passage: {p['product_name']} {p['bank']} {p['content']} {p['type']} ดอกเบี้ย {p['interest_rate']}"
+        passage_text = f"passage: {p['product_name']} {p['bank']} {p['content']} {p['type']} interest {p['interest_rate']}"
         vector = model.encode(passage_text, normalize_embeddings=True).tolist()
 
         doc = {
@@ -141,10 +146,10 @@ async def seed_loan_products():
             {"$set": doc},
             upsert=True
         )
-        print(f"   ✅ Upserted: {p['id']} - {p['product_name']} (Dim: {len(vector)})")
+        print(f"   Upserted: {p['id']} - {p['product_name']} (Dim: {len(vector)})")
 
     total = await collection.count_documents({})
-    print(f"\n🎉 Successfully seeded {len(RAW_LOAN_POLICIES)} policies! Total in DB: {total}")
+    print(f"\nSuccessfully seeded {len(RAW_LOAN_POLICIES)} policies! Total in DB: {total}")
     client.close()
 
 if __name__ == "__main__":

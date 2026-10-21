@@ -35,7 +35,7 @@ def parse_loan_file(file_path: Path) -> Dict[str, Any]:
             content_lines.append(line)
 
     product_name = metadata.get("ชื่อสินเชื่อ/บริการ", file_path.stem.replace("_", " ").title())
-    bank = metadata.get("ผู้ให้บริการ", "สถาบันการเงิน")
+    bank = metadata.get("ผู้ให้บริการ", "Financial Institution")
     
     # 1. Type
     parent_dir = file_path.parent.name.lower()
@@ -46,8 +46,8 @@ def parse_loan_file(file_path: Path) -> Dict[str, Any]:
         loan_type = "Term Loan"
     elif "leasing" in parent_dir:
         loan_type = "Leasing/Hire Purchase"
-    elif "tcg" in parent_dir or "guarantee" in parent_dir or "บสย" in product_name:
-        loan_type = "บสย. PGS"
+    elif "tcg" in parent_dir or "guarantee" in parent_dir or "บสย" in product_name or "tcg" in product_name.lower():
+        loan_type = "TCG PGS"
 
     # 2. Max Limit
     max_limit = 0.0
@@ -64,7 +64,7 @@ def parse_loan_file(file_path: Path) -> Dict[str, Any]:
         max_limit = 5_000_000.0  # Fallback if unspecified
 
     # 3. Interest Rate
-    interest_rate = "ตามเกณฑ์สถาบันการเงิน"
+    interest_rate = "Subject to bank underwriting"
     for l in content_lines:
         if any(w in l for w in ["อัตราดอกเบี้ย:", "ดอกเบี้ย:"]):
             interest_rate = l.split(":", 1)[-1].strip()
@@ -108,7 +108,7 @@ def parse_loan_file(file_path: Path) -> Dict[str, Any]:
         min_revenue = 50_000.0 if not requires_collateral else 100_000.0
 
     # 7. Required Documents
-    docs = ["ภ.พ.30 ย้อนหลัง 6 เดือน", "Bank Statement ย้อนหลัง 6 เดือน", "สำเนาบัตรประชาชน"]
+    docs = ["VAT returns (PP.30) past 6 months", "Bank Statement past 6 months", "National ID card copy"]
     for l in content_lines:
         if "เอกสาร" in l:
             parts = l.split(":", 1)[-1].split(",")
@@ -146,13 +146,13 @@ async def generate_contextual_prefix(doc: Dict[str, Any]) -> str:
     prefixed to document chunks under Contextual RAG principles.
     """
     rules = doc["extra_rules"]
-    col_str = "ต้องมีหลักทรัพย์ค้ำประกัน" if rules["requires_collateral"] else "ไม่ต้องใช้หลักทรัพย์ (Clean Loan / บสย. ค้ำประกัน)"
+    col_str = "Requires physical collateral" if rules["requires_collateral"] else "No collateral required (Clean Loan / TCG Guarantee)"
     
     prompt = (
-        f"จงเขียนสรุปบริบทหลักของสินเชื่อนี้ 1 ประโยคสั้นๆ เพื่อใช้นำทางระบบค้นหา RAG: "
-        f"ชื่อ: {doc['product_name']}, ธนาคาร: {doc['bank']}, ประเภท: {doc['type']}, "
-        f"วงเงินสูงสุด: {doc['max_limit']:,.0f} บาท, เงื่อนไขหลักทรัพย์: {col_str}, "
-        f"รายได้ขั้นต่ำ: {rules['min_revenue']:,.0f} บาท/เดือน, ประสบการณ์ธุรกิจ: {rules['min_age_years']} ปี"
+        f"Write a 1-sentence concise context summary of this SME loan to guide RAG vector retrieval: "
+        f"Product: {doc['product_name']}, Bank: {doc['bank']}, Type: {doc['type']}, "
+        f"Max Limit: {doc['max_limit']:,.0f} THB, Collateral: {col_str}, "
+        f"Min Revenue: {rules['min_revenue']:,.0f} THB/month, Min Age: {rules['min_age_years']} years"
     )
     
     try:
@@ -162,7 +162,7 @@ async def generate_contextual_prefix(doc: Dict[str, Any]) -> str:
                 json={
                     "model": settings.OLLAMA_WORKER_MODEL,
                     "messages": [
-                        {"role": "system", "content": "คุณคือ AI สรุปบริบทสินเชื่อ ตอบภาษาไทยสั้นกระชับ 1 ประโยค ห้ามมีคำขึ้นต้น"},
+                        {"role": "system", "content": "You are an AI loan context summarizer. Reply with a single concise sentence in English without conversational prefixes."},
                         {"role": "user", "content": prompt}
                     ],
                     "options": {"temperature": 0.0}
@@ -170,12 +170,12 @@ async def generate_contextual_prefix(doc: Dict[str, Any]) -> str:
             )
             if res.status_code == 200:
                 summary = res.json()["choices"][0]["message"]["content"].strip()
-                return f"[บริบทผลิตภัณฑ์: {summary}]"
+                return f"[Product Context: {summary}]"
     except Exception:
         pass
 
     # Deterministic Contextual Fallback if LLM does not respond
-    return f"[บริบทผลิตภัณฑ์: {doc['product_name']} ของ {doc['bank']} ประเภท {doc['type']} วงเงิน {doc['max_limit']:,.0f} บาท ({col_str})]"
+    return f"[Product Context: {doc['product_name']} by {doc['bank']} type {doc['type']} limit {doc['max_limit']:,.0f} THB ({col_str})]"
 
 # ---------------------------------------------------------------------------
 # 3. PIPELINE MAIN RUNNER
@@ -212,7 +212,7 @@ async def import_all_thai_sme_loans(loans_dir: str = "thai_sme_loans"):
             # 2. Combine contextual prefix with content before encoding
             passage_text = (
                 f"passage: {context_prefix} {loan_doc['product_name']} {loan_doc['bank']} "
-                f"{loan_doc['content']} ประเภท {loan_doc['type']} ดอกเบี้ย {loan_doc['interest_rate']}"
+                f"{loan_doc['content']} type {loan_doc['type']} interest {loan_doc['interest_rate']}"
             )
             vector = model.encode(passage_text, normalize_embeddings=True).tolist()
             loan_doc["embedding"] = vector

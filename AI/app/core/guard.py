@@ -34,7 +34,7 @@ class InvariantSanityGuard:
                         is_valid=False,
                         error_code="ITEM_LINE_MATH_MISMATCH",
                         violation_type="MATH_VIOLATION",
-                        feedback_prompt=f"รายการที่ {idx} ({item.description}): คำนวณจำนวน ({qty}) x ราคา ({price}) = {expected_amt} บาท แต่ยอดที่ระบุคือ {amt} บาท โปรดปรับยอดให้ตรงกัน",
+                        feedback_prompt=f"Item #{idx} ({item.description}): Calculated quantity ({qty}) x unit price ({price}) = {expected_amt} THB, but line item states {amt} THB. Please reconcile.",
                         details={"item_index": idx, "expected": float(expected_amt), "actual": float(amt)}
                     )
 
@@ -45,7 +45,7 @@ class InvariantSanityGuard:
                     is_valid=False,
                     error_code="SUBTOTAL_LINE_ITEM_MISMATCH",
                     violation_type="MATH_VIOLATION",
-                    feedback_prompt=f"ผลรวมของรายการสินค้า ({items_sum} บาท) ไม่ตรงกับยอด Subtotal ({subtotal} บาท)",
+                    feedback_prompt=f"Sum of line items ({items_sum} THB) does not match subtotal ({subtotal} THB).",
                     details={"items_sum": float(items_sum), "subtotal": float(subtotal)}
                 )
 
@@ -60,12 +60,12 @@ class InvariantSanityGuard:
                 expected_vat = (taxable_base * Decimal("0.07")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
             if abs(vat_amount - expected_vat) > self.TOLERANCE:
-                vat_mode_str = "รวมใน (Inclusive)" if invoice.vat_included else "แยกนอก (Exclusive)"
+                vat_mode_str = "Inclusive" if invoice.vat_included else "Exclusive"
                 return InvariantResult(
                     is_valid=False,
                     error_code="VAT_CALCULATION_MISMATCH",
                     violation_type="MATH_VAT_MISMATCH",
-                    feedback_prompt=f"การคำนวณ VAT แบบ {vat_mode_str} ไม่ถูกต้อง: ยอดที่ควรจะเป็นคือประมาณ {expected_vat} บาท แต่ในเอกสารระบุ {vat_amount} บาท",
+                    feedback_prompt=f"Incorrect {vat_mode_str} VAT calculation: expected approximately {expected_vat} THB, but document indicates {vat_amount} THB.",
                     details={"expected_vat": float(expected_vat), "actual_vat": float(vat_amount), "vat_included": invoice.vat_included}
                 )
 
@@ -83,9 +83,9 @@ class InvariantSanityGuard:
                 error_code="GRAND_TOTAL_FORMULA_MISMATCH",
                 violation_type="MATH_TOTAL_MISMATCH",
                 feedback_prompt=(
-                    f"ยอดรวมสุทธิ (Grand Total) คำนวณไม่ถูกต้อง: "
+                    f"Grand total calculation mismatch: "
                     f"Subtotal({subtotal}) - Discount({discount}) + VAT({vat_amount}) - WHT({wht_amount}) "
-                    f"ควรได้ยอดสุทธิ {expected_grand_total} บาท แต่ผลลัพธ์ระบุ {grand_total} บาท"
+                    f"should equal {expected_grand_total} THB, but result indicates {grand_total} THB."
                 ),
                 details={"expected_grand_total": float(expected_grand_total), "actual_grand_total": float(grand_total)}
             )
@@ -108,7 +108,7 @@ class InvariantSanityGuard:
                 is_valid=False,
                 error_code="CASHFLOW_ARITHMETIC_ERROR",
                 violation_type="CASHFLOW_MISMATCH",
-                feedback_prompt=f"ยอดเงินคงเหลือคำนวณคลาดเคลื่อน: {current_cash} + {income} - {expense} = {calc_projected} แต่ข้อความระบุ {projected_cash}",
+                feedback_prompt=f"Projected cash arithmetic error: {current_cash} + {income} - {expense} = {calc_projected}, but draft states {projected_cash}",
                 details={"expected_projected": calc_projected, "actual_projected": projected_cash}
             )
 
@@ -117,7 +117,7 @@ class InvariantSanityGuard:
                 is_valid=False,
                 error_code="RUNWAY_MISMATCH",
                 violation_type="RUNWAY_MISMATCH",
-                feedback_prompt=f"จำนวนวันสภาพคล่องคงเหลือ (Runway) ในข้อความ ({stated_runway} วัน) ไม่ตรงกับผลลัพธ์ Simulator ({actual_runway} วัน)",
+                feedback_prompt=f"Cash runway days in draft ({stated_runway} days) does not match simulator result ({actual_runway} days)",
                 details={"expected_runway": actual_runway, "stated_runway": stated_runway}
             )
 
@@ -138,7 +138,7 @@ class InvariantSanityGuard:
                     is_valid=False,
                     error_code="STATEMENT_BALANCE_MISMATCH",
                     violation_type="MATH_STATEMENT_MISMATCH",
-                    feedback_prompt=f"ยอดรวมใน Statement ไม่ลงตัว: ยอดยกมา ({balance_forward:,.2f}) + เงินเข้า ({total_deposit:,.2f}) - เงินออก ({total_withdrawal:,.2f}) = {expected_closing:,.2f} แต่ยอดคงเหลือระบุ {closing_balance:,.2f}",
+                    feedback_prompt=f"Statement balance mismatch: Balance forward ({balance_forward:,.2f}) + Deposits ({total_deposit:,.2f}) - Withdrawals ({total_withdrawal:,.2f}) = {expected_closing:,.2f}, but closing balance states {closing_balance:,.2f}",
                     details={"expected": expected_closing, "actual": closing_balance}
                 )
         return InvariantResult(is_valid=True)
@@ -152,23 +152,23 @@ class InvariantSanityGuard:
         """Verifies policy rules: e.g. crisis warning and financing solutions when runway is critical."""
         if runway_days < 15.0:
             # Draft must contain warning terminology
-            warning_keywords = ["เสี่ยง", "สภาพคล่อง", "วิกฤต", "ระวัง", "สินเชื่อ", "ชะลอ"]
-            if not any(k in draft_text for k in warning_keywords):
+            warning_keywords = ["risk", "liquidity", "crisis", "warning", "loan", "credit", "caution", "เสี่ยง", "สภาพคล่อง", "วิกฤต", "ระวัง", "สินเชื่อ", "ชะลอ"]
+            if not any(k in draft_text.lower() for k in warning_keywords):
                 return InvariantResult(
                     is_valid=False,
                     error_code="POLICY_LIQUIDITY_WARNING_MISSING",
                     violation_type="POLICY_VIOLATION",
-                    feedback_prompt="สภาพคล่องเหลือน้อยกว่า 15 วัน แต่ในร่างข้อความยังไม่มีคำเตือนความเสี่ยงสภาพคล่องหรือข้อเสนอแนะแหล่งเงินทุน โปรดระบุคำเตือนให้ชัดเจน"
+                    feedback_prompt="Liquidity runway is below 15 days, but draft response lacks explicit liquidity risk warning or financing options."
                 )
 
         if is_debt_risk:
-            debt_keywords = ["หนี้", "ผิดนัด", "ชำระหนี้", "เงินไม่พอจ่าย"]
-            if not any(k in draft_text for k in debt_keywords):
+            debt_keywords = ["debt", "default", "repayment", "shortfall", "obligation", "หนี้", "ผิดนัด", "ชำระหนี้", "เงินไม่พอจ่าย"]
+            if not any(k in draft_text.lower() for k in debt_keywords):
                 return InvariantResult(
                     is_valid=False,
                     error_code="POLICY_DEBT_RISK_WARNING_MISSING",
                     violation_type="POLICY_VIOLATION",
-                    feedback_prompt="ตรวจพบความเสี่ยงเงินไม่พอจ่ายหนี้สิ้นเดือน แต่ในร่างคำตอบยังไม่มีการแจ้งเตือนเรื่องภาระหนี้ โปรดเพิ่มคำเตือนหนี้สิ้นเดือน"
+                    feedback_prompt="Upcoming month-end debt service risk detected, but draft response does not warn about debt obligations."
                 )
 
         return InvariantResult(is_valid=True)
