@@ -1,5 +1,5 @@
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1').replace(/\/$/, '');
-const apiOrigin = apiBaseUrl.replace(/\/api\/v1$/, '');
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? '/api/v1').replace(/\/$/, '');
+const apiOrigin = apiBaseUrl.startsWith('http') ? apiBaseUrl.replace(/\/api\/v1$/, '') : '';
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {

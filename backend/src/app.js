@@ -15,7 +15,11 @@ const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(requestLogger);
-const allowedOrigins = env.frontendOrigin.split(',').map((origin) => origin.trim());
+
+const allowedOrigins = env.frontendOrigin === '*'
+  ? (origin, callback) => callback(null, true)
+  : env.frontendOrigin.split(',').map((origin) => origin.trim());
+
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(requireTrustedOrigin);
 app.use(express.json({ limit: '1mb' }));

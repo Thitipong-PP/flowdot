@@ -22,6 +22,10 @@ try {
   server = app.listen(env.port, env.host, () => {
     console.info(`Flow API listening on http://${env.host}:${env.port}`);
   });
+  // Prevent socket hang up on long AI/OCR generation calls (up to 180s)
+  server.keepAliveTimeout = 180000;
+  server.headersTimeout = 185000;
+  server.timeout = 180000;
 } catch (error) {
   console.error(`Unable to start the API: ${error.message}`);
   process.exitCode = 1;

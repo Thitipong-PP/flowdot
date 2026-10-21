@@ -4,7 +4,11 @@ Reviewed on 2026-10-20 against the current `AI/` implementation.
 
 ## Scope
 
-The newly added files are the complete system architecture diagram, the main orchestrator flow, the Agentic RAG subflow, and the input/situation/output matrix. They describe 13 scenario groups, including three duplicate-detection cases.
+The design files are located in [`docs/architecture/`](./architecture/):
+- [`system_architecture_complete.mmd`](./architecture/system_architecture_complete.mmd) — complete system architecture diagram
+- [`main_orchestrator_flow.mmd`](./architecture/main_orchestrator_flow.mmd) — main orchestrator workflow
+- [`agentic_rag_subflow.mmd`](./architecture/agentic_rag_subflow.mmd) — Agentic RAG subflow
+- [`all_cases_input_situation_output_matrix.md`](./architecture/all_cases_input_situation_output_matrix.md) — 13 scenario groups matrix, including duplicate-detection cases
 
 ## Implementation Status
 
@@ -51,4 +55,4 @@ Both JSONL files rotate at 10 MB and retain up to seven backups.
 6. Several fallback business profile values are sample data. The integrated Node path supplies customer-derived context and suppresses cashflow/loan calculations without a verified cash balance. AI service fallback paths must not be presented as verified eligibility or a binding financial offer.
 7. There is no completed consent ledger or purpose-specific PDPA consent flow in the AI service.
 
-The new diagrams and matrix are treated as a target design. They are not evidence that all described scenarios are production-complete.
+The design diagrams and matrix are treated as a target design. They are not evidence that all described scenarios are production-complete.

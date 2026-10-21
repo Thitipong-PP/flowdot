@@ -21,7 +21,7 @@ def build_receipt_card(
     """
     return {
         "type": "flex",
-        "altText": f"ยืนยันข้อมูลใบเสร็จ: {vendor} ({grand_total:,.2f} THB)",
+        "altText": f"Receipt Confirmation: {vendor} ({grand_total:,.2f} THB)",
         "contents": {
             "type": "bubble",
             "body": {
@@ -30,7 +30,7 @@ def build_receipt_card(
                 "contents": [
                     {
                         "type": "text",
-                        "text": "🧾 ยืนยันข้อมูลเอกสารการเงิน",
+                        "text": "🧾 Confirm Financial Document",
                         "weight": "bold",
                         "size": "md",
                         "color": "#1e293b"
@@ -45,9 +45,9 @@ def build_receipt_card(
                         "margin": "md",
                         "spacing": "xs",
                         "contents": [
-                            {"type": "text", "text": f"ร้านค้า/คู่ค้า: {vendor}", "size": "sm", "color": "#475569"},
-                            {"type": "text", "text": f"ยอดรวมสุทธิ: {grand_total:,.2f} THB", "size": "lg", "weight": "bold", "color": "#0284c7"},
-                            {"type": "text", "text": f"ภาษีมูลค่าเพิ่ม (VAT): {vat:,.2f} THB", "size": "xs", "color": "#94a3b8"}
+                            {"type": "text", "text": f"Vendor / Counterparty: {vendor}", "size": "sm", "color": "#475569"},
+                            {"type": "text", "text": f"Total Amount: {grand_total:,.2f} THB", "size": "lg", "weight": "bold", "color": "#0284c7"},
+                            {"type": "text", "text": f"VAT: {vat:,.2f} THB", "size": "xs", "color": "#94a3b8"}
                         ]
                     }
                 ]
@@ -63,7 +63,7 @@ def build_receipt_card(
                         "color": "#10b981",
                         "action": {
                             "type": "postback",
-                            "label": "ยืนยันบันทึก",
+                            "label": "Confirm & Save",
                             "data": f"action=confirm_receipt&receipt_id={receipt_id}&session_id={session_id}"
                         }
                     },
@@ -72,7 +72,7 @@ def build_receipt_card(
                         "style": "secondary",
                         "action": {
                             "type": "postback",
-                            "label": "แก้ไขข้อมูล",
+                            "label": "Edit Details",
                             "data": f"action=edit_receipt&receipt_id={receipt_id}&session_id={session_id}"
                         }
                     }
@@ -90,10 +90,10 @@ def build_loan_carousel(
     """
     bubbles = []
     for idx, loan in enumerate(loans[:5], 1):
-        name = loan.get("product_name") or loan.get("name", "สินเชื่อธุรกิจ SME")
-        bank = loan.get("bank", "สถาบันการเงินพันธมิตร")
+        name = loan.get("product_name") or loan.get("name", "SME Business Loan")
+        bank = loan.get("bank", "Partner Financial Institution")
         max_limit = loan.get("max_limit", 0.0)
-        interest = loan.get("interest_rate_text", "ตามเกณฑ์ธนาคาร")
+        interest = loan.get("interest_rate_text", "Bank Terms Apply")
         prob = loan.get("approval_probability", 80)
         product_id = loan.get("product_id") or f"loan_{idx}"
 
@@ -129,9 +129,9 @@ def build_loan_carousel(
                         "margin": "md",
                         "spacing": "xs",
                         "contents": [
-                            {"type": "text", "text": f"วงเงินสูงสุด: {max_limit:,.0f} THB", "size": "xs", "color": "#334155"},
-                            {"type": "text", "text": f"อัตราดอกเบี้ย: {interest}", "size": "xs", "color": "#334155"},
-                            {"type": "text", "text": f"โอกาสอนุมัติ: {prob}%", "size": "sm", "weight": "bold", "color": "#16a34a"}
+                            {"type": "text", "text": f"Max Limit: {max_limit:,.0f} THB", "size": "xs", "color": "#334155"},
+                            {"type": "text", "text": f"Interest Rate: {interest}", "size": "xs", "color": "#334155"},
+                            {"type": "text", "text": f"Approval Match: {prob}%", "size": "sm", "weight": "bold", "color": "#16a34a"}
                         ]
                     }
                 ]
@@ -146,7 +146,7 @@ def build_loan_carousel(
                         "color": "#0284c7",
                         "action": {
                             "type": "postback",
-                            "label": "สนใจสมัครสินเชื่อนี้",
+                            "label": "Apply for this Loan",
                             "data": f"action=apply_loan&product_id={product_id}&session_id={session_id}"
                         }
                     }
@@ -157,7 +157,7 @@ def build_loan_carousel(
 
     return {
         "type": "flex",
-        "altText": f"แนะนำผลิตภัณฑ์สินเชื่อ SME {len(bubbles)} รายการ",
+        "altText": f"Recommended SME Loan Options ({len(bubbles)} products)",
         "contents": {
             "type": "carousel",
             "contents": bubbles
@@ -176,7 +176,7 @@ def build_liquidity_alert_card(
     """
     return {
         "type": "flex",
-        "altText": f"⚠️ แจ้งเตือนวิกฤตสภาพคล่อง! ขาดดุล {deficit:,.2f} THB",
+        "altText": f"⚠️ Liquidity Alert! Projected Deficit: {deficit:,.2f} THB",
         "contents": {
             "type": "bubble",
             "body": {
@@ -185,7 +185,7 @@ def build_liquidity_alert_card(
                 "contents": [
                     {
                         "type": "text",
-                        "text": "🚨 แจ้งเตือนสภาพคล่องตึงตัว",
+                        "text": "🚨 Liquidity Shortfall Warning",
                         "weight": "bold",
                         "size": "md",
                         "color": "#dc2626"
@@ -200,10 +200,10 @@ def build_liquidity_alert_card(
                         "margin": "md",
                         "spacing": "xs",
                         "contents": [
-                            {"type": "text", "text": f"เงินสดคงเหลือ: {remaining_cash:,.2f} THB", "size": "sm", "color": "#334155"},
-                            {"type": "text", "text": f"หนี้ที่ต้องชำระสิ้นเดือน: {upcoming_debt:,.2f} THB", "size": "sm", "color": "#334155"},
-                            {"type": "text", "text": f"ยอดขาดดุลประเมิน: {deficit:,.2f} THB", "size": "lg", "weight": "bold", "color": "#dc2626"},
-                            {"type": "text", "text": f"ระยะเวลาประคองตัว (Runway): {runway_days:.1f} วัน", "size": "xs", "color": "#64748b"}
+                            {"type": "text", "text": f"Remaining Cash: {remaining_cash:,.2f} THB", "size": "sm", "color": "#334155"},
+                            {"type": "text", "text": f"Upcoming Debt Due: {upcoming_debt:,.2f} THB", "size": "sm", "color": "#334155"},
+                            {"type": "text", "text": f"Estimated Deficit: {deficit:,.2f} THB", "size": "lg", "weight": "bold", "color": "#dc2626"},
+                            {"type": "text", "text": f"Cash Runway: {runway_days:.1f} days", "size": "xs", "color": "#64748b"}
                         ]
                     }
                 ]
@@ -218,7 +218,7 @@ def build_liquidity_alert_card(
                         "color": "#dc2626",
                         "action": {
                             "type": "postback",
-                            "label": "ค้นหาสินเชื่อ SME ฉุกเฉิน",
+                            "label": "Find Emergency Financing",
                             "data": f"action=find_emergency_loan&deficit={deficit:.2f}&session_id={session_id}"
                         }
                     }

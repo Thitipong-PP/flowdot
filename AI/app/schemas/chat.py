@@ -19,5 +19,6 @@ class AssistantChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     user_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-    content: str = Field(min_length=1, max_length=4000)
+    content: str = Field(min_length=0, max_length=4000, default="")
     profile_context: AssistantProfileContext | None = None
+    image_base64: str | None = None

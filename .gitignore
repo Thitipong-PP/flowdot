@@ -7,9 +7,21 @@ coverage/
 backend/.data/
 AI/.data/
 AI/uploads/
+uploads/
 .env
 .env.*
 !.env.example
 *.log
 *.tsbuildinfo
 .DS_Store
+
+# Python virtual environment & cache
+.venv/
+AI/.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/

@@ -12,7 +12,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -346,15 +346,14 @@ async def telemetry_stream(session_id: str):
     )
 
 
-@app.get("/", response_class=HTMLResponse)
-@app.get("/chat", response_class=HTMLResponse)
-async def serve_demo_ui():
-    """Serves the interactive live chat and telemetry monitor web UI."""
-    template_path = os.path.join(os.path.dirname(__file__), "templates", "demo_ui.html")
-    if os.path.exists(template_path):
-        with open(template_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    return HTMLResponse(content="<h2>Demo UI template not found</h2>", status_code=404)
+@app.get("/")
+async def root():
+    """Returns AI Subsystem status (Headless API)."""
+    return {
+        "service": settings.APP_NAME,
+        "status": "ready",
+        "mode": settings.RETRIEVAL_MODE,
+    }
 
 
 @app.post("/api/v1/chat")
@@ -394,9 +393,9 @@ async def _process_direct_chat(payload: AssistantChatRequest, request: Request, 
             route_url = fast_path_res.get("login_url") or fast_path_res.get("settings_url") or fast_path_res.get("help_url")
             reply_text = f"{route_title}\n{route_url}" if route_url else route_title
             if fast_path_res.get("phone") or fast_path_res.get("line_oa"):
-                reply_text += f"\nโทร {fast_path_res.get('phone', '—')} · LINE {fast_path_res.get('line_oa', '—')}"
+                reply_text += f"\nPhone {fast_path_res.get('phone', '—')} · LINE {fast_path_res.get('line_oa', '—')}"
             if not reply_text:
-                reply_text = "เปิดเมนูที่เลือกให้แล้วค่ะ"
+                reply_text = "Opened the requested menu."
             await telemetry_emitter.emit(TelemetryEvent(
                 session_id=user_id,
                 event="FAST_PATH_COMPLETED",
@@ -408,11 +407,35 @@ async def _process_direct_chat(payload: AssistantChatRequest, request: Request, 
 
     # 2. Build inputs
     inputs = []
+    if payload.image_base64:
+        uploads_dir = os.path.abspath("uploads")
+        os.makedirs(uploads_dir, exist_ok=True)
+        img_b64 = payload.image_base64
+        clean_b64 = img_b64.split(",", 1)[1] if "," in img_b64 else img_b64
+        try:
+            decoded = base64.b64decode(clean_b64, validate=True)
+            if len(decoded) > settings.MAX_UPLOAD_BYTES:
+                return JSONResponse(status_code=413, content={"detail": "Upload exceeds size limit"})
+            if not _is_supported_upload(decoded):
+                return JSONResponse(status_code=415, content={"detail": "Unsupported image format"})
+            ext = ".png"
+            if decoded.startswith(b"\xff\xd8\xff"):
+                ext = ".jpg"
+            elif decoded.startswith(b"RIFF") and decoded[8:12] == b"WEBP":
+                ext = ".webp"
+            safe_fname = f"{uuid.uuid4().hex}{ext}"
+            saved_img_path = os.path.join(uploads_dir, safe_fname)
+            with open(saved_img_path, "wb") as f_img:
+                f_img.write(decoded)
+            inputs.append({"type": "image", "file_path": saved_img_path})
+        except (ValueError, base64.binascii.Error):
+            return JSONResponse(status_code=400, content={"detail": "Invalid image upload"})
+
     if content:
         inputs.append({"type": "text", "content": content})
 
     if not inputs:
-        inputs.append({"type": "text", "content": "ขอตรวจสอบสภาพคล่องทางการเงิน"})
+        inputs.append({"type": "text", "content": "Request financial liquidity check"})
 
     # 3. Process via MasterOrchestrator
     profile_context = payload.profile_context.model_dump() if payload.profile_context else None

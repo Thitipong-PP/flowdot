@@ -97,26 +97,17 @@ class MongoDBManager:
         now = datetime.now(timezone.utc)
 
         # 1. Seed Loan Products
-        from app.db.vector_store import DEFAULT_LOAN_PRODUCTS, create_pseudo_dense_embedding
-        await self.loan_products.delete_many({})
-        docs_to_insert = []
-        for p in DEFAULT_LOAN_PRODUCTS:
-            emb = create_pseudo_dense_embedding(p["content"]).tolist()
-            doc = {
-                **p,
-                "text": p["content"],
-                "embedding": emb,
-                "created_at": now
-            }
-            docs_to_insert.append(doc)
-        if docs_to_insert:
-            await self.loan_products.insert_many(docs_to_insert)
+        try:
+            from app.db.seed_loan_catalog import seed_loan_products
+            await seed_loan_products()
+        except Exception as e:
+            print(f"Loan catalog seed note: {e}")
 
         # 2. Seed Sample Bank Statements (Somchai Supermart 30 days)
         await self.statements.delete_many({})
         sample_statement = {
             "business_id": "sme_user_001",
-            "business_name": "บจก. สมชาย ซุปเปอร์มาร์ท",
+            "business_name": "Somchai Supermart Ltd.",
             "period": "2026-09-01 to 2026-09-30",
             "current_cash_reserve": 120000.0,
             "upcoming_debt_service": 70000.0,

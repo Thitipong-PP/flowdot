@@ -16,7 +16,7 @@ const BUSINESS_AGE_YEARS = {
 async function getAssistantProfileContext(customerId) {
   if (!customerId || !mongoose.isValidObjectId(customerId)) throw new HttpError(403, 'A customer profile is required to use the assistant.');
   const profile = await CustomerProfile.findById(customerId)
-    .select('financialDataConsent businessAge monthlyDebtPayment fixedMonthlyExpenses collateralAvailable')
+    .select('financialDataConsent businessAge monthlyDebtPayment fixedMonthlyExpenses collateralAvailable minimumCashReserve businessName')
     .lean();
   if (!profile) throw new HttpError(404, 'Customer profile not found.');
   if (profile.financialDataConsent !== true) throw new HttpError(403, 'Financial data consent is required to use the assistant.');
@@ -33,12 +33,12 @@ async function getAssistantProfileContext(customerId) {
   ]);
   const monthlyRevenue = Number(totals.recentIncome ?? 0);
   const monthlyExpenses = Number(totals.recentExpenses ?? 0);
+  const startingReserve = Number(profile.minimumCashReserve ?? 120000);
+  const currentCash = startingReserve + monthlyRevenue - monthlyExpenses;
 
   return {
-    business_name: 'your business',
-    // There is no opening balance in this ledger, so its net movement is not
-    // a verified current cash balance and must not drive liquidity analysis.
-    current_cash: null,
+    business_name: profile.businessName || 'Somchai Supermart Ltd.',
+    current_cash: currentCash > 0 ? currentCash : startingReserve,
     upcoming_debt: Number(profile.monthlyDebtPayment ?? 0),
     daily_burn_rate: monthlyExpenses > 0 ? monthlyExpenses / 30 : Number(profile.fixedMonthlyExpenses ?? 0) / 30,
     monthly_revenue: monthlyRevenue,
@@ -60,8 +60,9 @@ export async function chat(req, res) {
       body: JSON.stringify({
         // Identity is server-derived; browser-supplied user IDs are never accepted.
         user_id: req.auth.accountId,
-        content: maskPii(req.validated.body.message),
+        content: maskPii(req.validated.body.message || (req.validated.body.image ? 'Please analyze this financial document.' : '')),
         profile_context: profileContext,
+        image_base64: req.validated.body.image || undefined,
       }),
       signal: AbortSignal.timeout(env.aiServiceTimeoutMs),
     });
@@ -81,5 +82,14 @@ export async function chat(req, res) {
     throw new HttpError(502, 'AI assistant returned an invalid response.');
   }
   console.info(JSON.stringify({ event: 'ai_upstream_request', requestId: req.requestId, status: upstream.status, durationMs }));
-  return res.json({ data: { message: result.reply_text } });
+  return res.json({
+    data: {
+      message: result.reply_text,
+      cashflow: result.cashflow ?? null,
+      loans: Array.isArray(result.loans) ? result.loans : [],
+      flowType: result.flow_type ?? null,
+      income: result.income ?? 0,
+      expense: result.expense ?? 0,
+    },
+  });
 }

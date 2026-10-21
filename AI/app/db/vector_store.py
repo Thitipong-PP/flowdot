@@ -1,6 +1,10 @@
 from typing import List, Dict, Any, Optional
 import os
+import sys
 import asyncio
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # Silence HuggingFace progress bars and tokenizer warnings
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"

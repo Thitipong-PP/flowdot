@@ -52,7 +52,7 @@ class MasterOrchestrator:
             })
             if stmt:
                 return {
-                    "business_name": stmt.get("business_name", "บจก. สมชาย ซุปเปอร์มาร์ท"),
+                    "business_name": stmt.get("business_name", "Somchai Supermart Ltd."),
                     "current_cash": float(stmt.get("current_cash_reserve", 120000.0)),
                     "upcoming_debt": float(stmt.get("upcoming_debt_service", 70000.0)),
                     "daily_burn_rate": float(stmt.get("daily_burn_rate", 3000.0)),
@@ -63,7 +63,7 @@ class MasterOrchestrator:
             print(f"MongoDB profile lookup note: {e}")
 
         return {
-            "business_name": "บจก. สมชาย ซุปเปอร์มาร์ท",
+            "business_name": "Somchai Supermart Ltd.",
             "current_cash": 120000.0,
             "upcoming_debt": 70000.0,
             "daily_burn_rate": 3000.0,
@@ -79,39 +79,39 @@ class MasterOrchestrator:
     ) -> Dict[str, Any]:
         """Allows LLM to select tools and extract financial amounts based on natural language understanding."""
         if self.mock_mode:
-            amt_match = re.search(r'(\d+[\d,]*(?:\.\d+)?)\s*(?:บาท|thb)?', user_text.replace(',', ''))
+            amt_match = re.search(r'(\d+[\d,]*(?:\.\d+)?)\s*(?:บาท|thb|baht|usd|\$)?', user_text.replace(',', ''), re.IGNORECASE)
             amt = float(amt_match.group(1)) if amt_match else 0.0
             tools = []
             if has_images:
                 tools.append("tool_vision")
-            if any(k in user_text for k in ["บิล", "จ่าย", "บาท", "thb", "หนี้", "การเงิน", "ยอด", "เช็ค", "เช็ก"]):
+            if any(k in user_text.lower() for k in ["บิล", "จ่าย", "บาท", "thb", "หนี้", "การเงิน", "ยอด", "เช็ค", "เช็ก", "bill", "pay", "expense", "debt", "cash", "balance", "cost", "invoice", "receipt"]):
                 tools.append("tool_cashflow")
-            if any(k in user_text for k in ["สินเชื่อ", "กู้", "เงินทุน"]):
+            if any(k in user_text.lower() for k in ["สินเชื่อ", "กู้", "เงินทุน", "loan", "borrow", "fund", "financing", "credit"]):
                 tools.append("tool_loan_rag")
             return {"thought": "Mock planning", "tools_to_call": tools, "extracted_expense": amt}
 
-        prompt = f"""คุณคือ AI Master Orchestrator ด้านการเงินของ {profile['business_name']}
-รายการเครื่องมือที่เรียกใช้ได้ (Tools Registry):
-1. "tool_vision": อ่านข้อมูลบิล/สลิปจากรูปภาพ (ใช้เมื่อผู้ใช้แนบรูปภาพ)
-2. "tool_cashflow": จำลองกระแสเงินสดและ Runway (ใช้เมื่อผู้ใช้แจ้งค่าใช้จ่ายใหม่ ถามเงินคงเหลือ หรือเช็กหนี้สิน)
-3. "tool_loan_rag": ค้นหาสินเชื่อ SME ผ่าน 5-Stage Agentic RAG (ใช้เมื่อถามหาสินเชื่อ กู้เงิน หรือเงินขาดดุล)
+        prompt = f"""You are the Master AI Financial Orchestrator for {profile['business_name']}.
+Tools Registry:
+1. "tool_vision": Read bill/slip data from images (use when user attaches an image).
+2. "tool_cashflow": Simulate cashflow and runway (use when user reports expenses/income, inquires cash balance, or checks debt).
+3. "tool_loan_rag": Search SME financing products via 5-Stage Agentic RAG (use when asking about loans, financing, or facing liquidity deficit).
 
-ข้อความผู้ใช้: "{user_text}"
-มีรูปภาพแนบจริง: {'ใช่' if has_images else 'ไม่ใช่'}
+User Message: "{user_text}"
+Image Attached: {'Yes' if has_images else 'No'}
 
-กฎการตัดสินใจ:
-- หากทักทาย (สวัสดี, ดีครับ), คุยทั่วไป, หรือถามคำถามความรู้ทั่วไป (เช่น วันนี้วันอะไร, 1+1=?) -> ห้ามเรียก tool ใดๆ (tools_to_call: [])
-- หากมีรูปภาพแนบ -> ให้เลือก "tool_vision"
-- หากผู้ใช้แจ้งค่าใช้จ่าย ให้สกัด "extracted_expense" เป็นตัวเลขยอดจริง (เช่น ถ้าผู้ใช้บอก "บิล 95000 บาท" ให้ใส่ 95000.0) และเลือก "tool_cashflow"
-- หากถามเรื่องสินเชื่อ -> ให้เลือก "tool_loan_rag"
+Decision Rules:
+- If greeting (hi, hello, greetings), casual chat, or general knowledge question (e.g. what day is today, 1+1=?) -> DO NOT call any tools (tools_to_call: []).
+- If an image is attached -> choose "tool_vision".
+- If the user reports an expense, extract "extracted_expense" as a numeric value (e.g., if user says "bill 95,000 THB", extract 95000.0) and choose "tool_cashflow".
+- If asking about loans or financing -> choose "tool_loan_rag".
 
-ตอบเฉพาะ JSON ตามโครงสร้างนี้:
+Respond strictly in valid JSON matching this schema:
 {{
-  "thought": "เหตุผลสั้นๆ 1 ประโยค",
+  "thought": "Brief 1-sentence reasoning",
   "tools_to_call": ["tool_cashflow"],
   "extracted_expense": 0.0
 }}
-(หมายเหตุ: แทนที่ 0.0 ใน extracted_expense ด้วยยอดเงินจริงที่ระบุในข้อความ หากไม่มีค่าใช้จ่ายให้คงไว้เป็น 0.0)"""
+(Note: Replace 0.0 in extracted_expense with the actual numeric amount mentioned. If no expense is mentioned, keep it 0.0)"""
 
         try:
             async with httpx.AsyncClient(timeout=90.0) as client:
@@ -133,22 +133,30 @@ class MasterOrchestrator:
                         plan_data = json.loads(match.group(0))
                         # Defense-in-depth: If LLM missed numeric extraction despite explicit currency keywords
                         if float(plan_data.get("extracted_expense", 0.0)) == 0.0:
-                            amt_match = re.search(r'(\d+[\d,]*(?:\.\d+)?)\s*(?:บาท|thb)', user_text.replace(',', ''))
+                            amt_match = re.search(r'(\d+[\d,]*(?:\.\d+)?)\s*(?:บาท|thb|baht|usd|\$)', user_text.replace(',', ''), re.IGNORECASE)
                             if amt_match:
                                 plan_data["extracted_expense"] = float(amt_match.group(1))
                                 if "tool_cashflow" not in plan_data.get("tools_to_call", []):
                                     plan_data.setdefault("tools_to_call", []).append("tool_cashflow")
+
+                        # Defense-in-depth: Ensure loan RAG is invoked if query asks about loans/financing
+                        if any(k in user_text.lower() for k in ["loan", "credit", "borrow", "financing", "fund", "สินเชื่อ", "กู้", "เงินกู้", "เงินทุน"]):
+                            if "tool_loan_rag" not in plan_data.get("tools_to_call", []):
+                                plan_data.setdefault("tools_to_call", []).append("tool_loan_rag")
+
                         return plan_data
         except Exception as e:
             print(f"Agent Planning warning: {e}")
 
-        amt_match = re.search(r'(\d+[\d,]*(?:\.\d+)?)\s*(?:บาท|thb)?', user_text.replace(',', ''))
+        amt_match = re.search(r'(\d+[\d,]*(?:\.\d+)?)\s*(?:บาท|thb|baht|usd|\$)?', user_text.replace(',', ''), re.IGNORECASE)
         amt = float(amt_match.group(1)) if amt_match else 0.0
         tools = []
         if has_images:
             tools.append("tool_vision")
-        if amt > 0 or any(k in user_text for k in ["บิล", "จ่าย", "บาท", "thb", "หนี้"]):
+        if amt > 0 or any(k in user_text.lower() for k in ["บิล", "จ่าย", "บาท", "thb", "หนี้", "bill", "pay", "expense", "debt", "cash"]):
             tools.append("tool_cashflow")
+        if any(k in user_text.lower() for k in ["loan", "credit", "borrow", "financing", "fund", "สินเชื่อ", "กู้", "เงินกู้", "เงินทุน"]):
+            tools.append("tool_loan_rag")
         return {"thought": "Fallback safety", "tools_to_call": tools, "extracted_expense": amt}
 
     def classify_document_flow(
@@ -159,11 +167,11 @@ class MasterOrchestrator:
         user_text: str = ""
     ) -> Dict[str, Any]:
         """
-        Classifies incoming financial transaction into INFLOW (รายรับ) or OUTFLOW (รายจ่าย)
+        Classifies incoming financial transaction into INFLOW (income) or OUTFLOW (expense)
         by matching business identity against sender/receiver or seller/buyer.
         """
         def _norm(s: Any) -> str:
-            return re.sub(r'บจก\.?|บริษัท|จำกัด|\s+', '', str(s or '')).lower()
+            return re.sub(r'บจก\.?|บริษัท|จำกัด|ltd\.?|co\.?|inc\.?|\s+', '', str(s or '')).lower()
 
         biz_clean = _norm(business_name)
         text_lower = user_text.lower()
@@ -173,6 +181,9 @@ class MasterOrchestrator:
             txs = struct.get("transactions", [])
             total_dep = sum(float(t.get("deposit") or 0.0) for t in txs if isinstance(t, dict))
             total_wdr = sum(float(t.get("withdrawal") or 0.0) for t in txs if isinstance(t, dict))
+            # Fallback: if deposit/withdrawal keys are None, use transaction amount
+            if total_dep == 0.0 and total_wdr == 0.0 and txs:
+                total_wdr = sum(float(t.get("amount") or 0.0) for t in txs if isinstance(t, dict))
             acct = struct.get("account", {}) if isinstance(struct.get("account"), dict) else {}
             closing = float(acct.get("closing_balance") or 0.0)
             b_fwd = float(acct.get("balance_forward") or 0.0) if acct.get("balance_forward") is not None else None
@@ -191,7 +202,7 @@ class MasterOrchestrator:
             snd_clean = _norm(struct.get("sender_name"))
             amt = float(struct.get("amount") or 0.0)
 
-            income_keywords = ["ลูกค้าโอน", "เงินเข้า", "รับเงิน", "ชำระเงินเข้ามา", "ขายของได้", "ได้รับเงิน", "โอนมาให้"]
+            income_keywords = ["ลูกค้าโอน", "เงินเข้า", "รับเงิน", "ชำระเงินเข้ามา", "ขายของได้", "ได้รับเงิน", "โอนมาให้", "transfer", "deposit", "received", "income", "inflow", "sales", "revenue"]
             # If business is the receiver or user mentioned customer transfer -> INFLOW
             is_receiver = bool(biz_clean and (biz_clean in rec_clean or rec_clean in biz_clean))
             has_income_hint = any(k in text_lower for k in income_keywords)
@@ -221,7 +232,7 @@ class MasterOrchestrator:
 
             # If our business is the SELLER -> Sales Invoice (Income/Inflow)
             is_seller = bool(biz_clean and (biz_clean in seller_clean or seller_clean in biz_clean))
-            has_sales_hint = any(k in text_lower for k in ["ขาย", "ออกบิล", "ใบเสร็จขาย"])
+            has_sales_hint = any(k in text_lower for k in ["ขาย", "ออกบิล", "ใบเสร็จขาย", "sale", "sales", "invoice to", "sold"])
 
             if is_seller or has_sales_hint:
                 return {
@@ -263,88 +274,88 @@ class MasterOrchestrator:
         is_crisis = cash_res.get("is_liquidity_crisis", False)
         has_loans = len(loan_results) > 0
 
-        current_cash_description = f"{profile['current_cash']:,.2f} บาท" if profile.get("current_cash") is not None else "ยังไม่มีข้อมูลยอดเงินคงเหลือที่ยืนยันได้"
-        system_prompt = f"""คุณคือ AI CFO คู่คิดทางการเงินประจำกิจการ "{profile['business_name']}"
-- เงินสดสำรองปัจจุบัน: {current_cash_description}
-- หนี้สินรอชำระสิ้นเดือน: {profile['upcoming_debt']:,.2f} บาท
-บุคลิก: มืออาชีพ เป็นมิตร ตรงไปตรงมา ช่วยเหลือ SME อย่างจริงใจ หากผู้ใช้คุยทั่วไป ให้ตอบเป็นธรรมชาติ"""
+        current_cash_description = f"{profile['current_cash']:,.2f} THB" if profile.get("current_cash") is not None else "No verified initial cash balance available"
+        system_prompt = f"""You are the AI CFO financial advisor for "{profile['business_name']}".
+- Current Cash Reserve: {current_cash_description}
+- Month-End Debt Obligation: {profile['upcoming_debt']:,.2f} THB
+Persona: Professional, friendly, direct, genuinely supportive of SMEs. If user chats casually, respond naturally."""
 
         if has_loans:
             loans_summary = []
             for l in loan_results[:3]:
-                name = l.get("product_name") or l.get("name") or "สินเชื่อ SME"
-                rate = l.get("interest_rate_text") or str(l.get("interest_rate", "ตามเกณฑ์ธนาคาร"))
+                name = l.get("product_name") or l.get("name") or "SME Financing"
+                rate = l.get("interest_rate_text") or str(l.get("interest_rate", "Bank terms apply"))
                 limit = float(l.get("max_limit") or l.get("max_credit_limit") or 0.0)
-                rationale = l.get("recommendation_rationale") or l.get("rationale") or "วงเงินและเงื่อนไขเหมาะสม"
-                loans_summary.append(f"- {name}: ดอกเบี้ย {rate}, วงเงิน {limit:,.0f} บาท ({rationale})")
+                rationale = l.get("recommendation_rationale") or l.get("rationale") or "Suitable limit and requirements"
+                loans_summary.append(f"- {name}: Interest {rate}, Limit {limit:,.0f} THB ({rationale})")
 
-            user_prompt = f"""คำถามจากเจ้าของธุรกิจ: "{user_text}"
-[ข้อมูลสินเชื่อที่ระบบแมตช์ให้]
+            user_prompt = f"""Business owner inquiry: "{user_text}"
+[Matched Financing Products]
 {chr(10).join(loans_summary)}
-คำสั่ง: แนะนำทางเลือกสินเชื่อด้านบนให้กระชับ ชี้จุดเด่น และสรุปชื่อกับเงื่อนไขจากข้อมูลที่ให้ ห้ามอ้างถึงการ์ดด้านล่าง"""
+Instruction: Recommend the financing options above concisely, highlighting key features and summarizing names and terms. Do not refer to UI cards below."""
             target_temp = 0.4
 
         elif doc_type == "bank_statement" and profile.get("current_cash") is None:
-            user_prompt = f"""รายงาน Statement จากเจ้าของธุรกิจ: "{user_text}"
-[ข้อจำกัดข้อมูล] ระบบยังไม่มียอดเงินตั้งต้นที่ยืนยันได้
-- ยอดเงินเข้าในรายการ: {income:,.2f} บาท
-- ยอดเงินออกในรายการ: {expense:,.2f} บาท
-คำสั่ง: สรุปเฉพาะยอดเงินเข้า/ออกที่ตรวจพบ ห้ามคำนวณยอดคงเหลือหรือ runway และแจ้งว่าต้องมียอดตั้งต้นก่อนวิเคราะห์สภาพคล่อง"""
+            user_prompt = f"""Statement report from business owner: "{user_text}"
+[Data Limitation] System does not have a verified initial cash balance.
+- Total Inflow in Statement: {income:,.2f} THB
+- Total Outflow in Statement: {expense:,.2f} THB
+Instruction: Summarize only the detected inflow and outflow amounts. Do not calculate cash balance or runway, and notify the user that an initial cash balance is required for liquidity analysis."""
             target_temp = 0.2
 
         elif doc_type == "bank_statement":
-            user_prompt = f"""รายงาน Statement จากเจ้าของธุรกิจ: "{user_text}"
-[ผลวิเคราะห์รายการเดินบัญชี Bank Statement]
-- ยอดเงินเข้าสะสม (Deposits): {income:,.2f} บาท
-- ยอดเงินออกสะสม (Withdrawals): {expense:,.2f} บาท
-- ยอดเงินสดคงเหลือหลังปรับยอด: {cash_res.get('projected_cash', 0):,.2f} บาท
-- ระยะเวลาประคองตัว (Runway): {cash_res.get('runway_days', 0)} วัน
-คำสั่ง: สรุปภาพรวมการเดินบัญชี อัปเดตเงินสดคงเหลือและระยะเวลาประคองตัวอย่างชัดเจน"""
+            user_prompt = f"""Statement report from business owner: "{user_text}"
+[Bank Statement Analysis Results]
+- Total Deposits (Inflow): {income:,.2f} THB
+- Total Withdrawals (Outflow): {expense:,.2f} THB
+- Updated Cash Balance: {cash_res.get('projected_cash', 0):,.2f} THB
+- Estimated Runway: {cash_res.get('runway_days', 0)} days
+Instruction: Summarize the statement activity, clearly updating remaining cash balance and runway."""
             target_temp = 0.3
 
         elif (has_new_income or has_new_expense) and profile.get("current_cash") is None:
-            user_prompt = f"""ข้อความจากเจ้าของธุรกิจ: "{user_text}"
-[ข้อจำกัดข้อมูล] ระบบยังไม่มียอดเงินตั้งต้น/ยอดเงินปัจจุบันที่ยืนยันได้ จึงคำนวณยอดคงเหลือหรือ runway ไม่ได้
-คำสั่ง: แจ้งข้อจำกัดนี้อย่างชัดเจน ห้ามแต่งยอดเงินคงเหลือหรือประเมินสภาพคล่อง และขอให้ผู้ใช้ระบุยอดเงินปัจจุบันหรือเพิ่มยอดตั้งต้นก่อนวิเคราะห์"""
+            user_prompt = f"""Message from business owner: "{user_text}"
+[Data Limitation] The system does not have a verified initial cash balance, so runway and ending balance cannot be calculated.
+Instruction: State this limitation clearly. Do not fabricate a balance or liquidity assessment, and ask the user to provide their current cash balance before proceeding with liquidity analysis."""
             target_temp = 0.2
 
         elif has_new_income:
-            user_prompt = f"""คำถาม/เอกสารจากเจ้าของธุรกิจ: "{user_text}"
-[ผลวิเคราะห์กระแสเงินสดหลังได้รับเงินเข้าจริง]
-- รายการเงินเข้า/รายรับ: {income:,.2f} บาท
-- เงินสดคงเหลือหลังรับเงิน: {cash_res.get('projected_cash', 0):,.2f} บาท
-- ภาระหนี้สินสิ้นเดือน: {profile['upcoming_debt']:,.2f} บาท
-- ระยะเวลาประคองตัว (Runway): {cash_res.get('runway_days', 0)} วัน
-คำสั่ง: สรุปยอดเงินเข้าอย่างยินดีและมืออาชีพ แจ้งยอดเงินสดคงเหลือใหม่ และให้กำลังใจการค้าขาย"""
+            user_prompt = f"""Inquiry/document from business owner: "{user_text}"
+[Cashflow Analysis After Inflow]
+- Inflow / Revenue Recorded: {income:,.2f} THB
+- Updated Cash Reserve: {cash_res.get('projected_cash', 0):,.2f} THB
+- Month-End Debt Obligations: {profile['upcoming_debt']:,.2f} THB
+- Estimated Runway: {cash_res.get('runway_days', 0)} days
+Instruction: Warmly and professionally summarize the inflow, report the updated cash reserve, and encourage business growth."""
             target_temp = 0.4
 
         elif has_new_expense:
-            user_prompt = f"""คำถาม/เอกสารจากเจ้าของธุรกิจ: "{user_text}"
-[ผลวิเคราะห์กระแสเงินสดหลังจ่ายจริง]
-- ค่าใช้จ่ายที่ตรวจสอบได้: {expense:,.2f} บาท
-- เงินสดคงเหลือหลังจ่าย: {cash_res.get('projected_cash', 0):,.2f} บาท
-- สถานะ: {'⚠️ เสี่ยงขาดสภาพคล่องสำหรับหนี้สิ้นเดือน' if is_crisis else '✅ สภาพคล่องปลอดภัย'}
-- ขาดดุล: {cash_res.get('deficit', 0):,.2f} บาท | Runway: {cash_res.get('runway_days', 0)} วัน
-คำสั่ง: สรุปยอดเงินคงเหลือและผลกระทบอย่างตรงไปตรงมาและให้กำลังใจอย่างมืออาชีพ"""
+            user_prompt = f"""Inquiry/document from business owner: "{user_text}"
+[Cashflow Analysis After Expense]
+- Verified Expense: {expense:,.2f} THB
+- Cash Remaining After Payment: {cash_res.get('projected_cash', 0):,.2f} THB
+- Status: {'⚠️ Liquidity Risk for Month-End Obligations' if is_crisis else '✅ Healthy Liquidity'}
+- Deficit: {cash_res.get('deficit', 0):,.2f} THB | Runway: {cash_res.get('runway_days', 0)} days
+Instruction: Summarize the remaining cash balance and financial impact directly and constructively with professional encouragement."""
             target_temp = 0.3
 
         else:
-            user_prompt = f"""ข้อความจากผู้ใช้: "{user_text}"
-คำสั่ง: ตอบคำถามหรือสนทนาอย่างเป็นธรรมชาติและตรงประเด็น หากเป็นคำถามทั่วไปให้ตอบคำตอบที่ถูกต้อง"""
+            user_prompt = f"""User message: "{user_text}"
+Instruction: Respond naturally, directly, and accurately to the user's message."""
             target_temp = 0.6
 
         if self.mock_mode:
             if profile.get("current_cash") is None and (has_new_income or has_new_expense):
-                return "ยังคำนวณยอดคงเหลือหรือสภาพคล่องไม่ได้ เพราะระบบไม่มียอดเงินตั้งต้นที่ยืนยันได้ กรุณาระบุยอดเงินปัจจุบันก่อนวิเคราะห์ค่ะ"
+                return "Cannot calculate remaining balance or liquidity yet because there is no verified initial cash reserve. Please specify your current cash balance first."
             if has_loans:
-                return f"คัดสรรสินเชื่อที่เหมาะสมมาให้ {len(loan_results)} รายการค่ะ กรุณาใช้เมนู Find financing เพื่อดูรายละเอียดและเงื่อนไขของแต่ละผลิตภัณฑ์นะคะ"
+                return f"Matched {len(loan_results)} suitable financing options for your business. Please check the Find financing section to explore details and terms."
             if doc_type == "bank_statement":
-                return f"อัปเดต Statement เรียบร้อยค่ะ เงินเข้า {income:,.2f} บาท เงินออก {expense:,.2f} บาท ยอดคงเหลือ {cash_res.get('projected_cash', 0):,.2f} บาทค่ะ"
+                return f"Statement updated successfully: Inflow {income:,.2f} THB, Outflow {expense:,.2f} THB, Projected balance {cash_res.get('projected_cash', 0):,.2f} THB."
             if has_new_income:
-                return f"ตรวจพบยอดเงินเข้า {income:,.2f} บาทค่ะ เงินสดสำรองเพิ่มขึ้นเป็น {cash_res.get('projected_cash', 0):,.2f} บาท สภาพคล่องคล่องตัวขึ้นค่ะ"
+                return f"Recorded inflow of {income:,.2f} THB. Cash reserve increased to {cash_res.get('projected_cash', 0):,.2f} THB with healthy liquidity."
             if has_new_expense:
-                return f"ยอดค่าใช้จ่าย {expense:,.2f} บาท ทำให้เงินสดคงเหลือ {cash_res.get('projected_cash', 0):,.2f} บาทค่ะ"
-            return f"สวัสดีค่ะ CFO ประจำ {profile['business_name']} ยินดีดูแลค่ะ สอบถามได้เลยนะคะ"
+                return f"Expense of {expense:,.2f} THB recorded. Remaining cash balance is {cash_res.get('projected_cash', 0):,.2f} THB."
+            return f"Hello! I am your AI CFO for {profile['business_name']}. How can I assist you with your business finances today?"
 
         try:
             async with httpx.AsyncClient(timeout=90.0) as client:
@@ -372,12 +383,12 @@ class MasterOrchestrator:
             print(f"Master response synthesis warning: {e}")
 
         if profile.get("current_cash") is None and (has_new_income or has_new_expense or doc_type == "bank_statement"):
-            return "ระบบสรุปรายการเงินเข้าและออกได้ แต่ยังคำนวณยอดคงเหลือหรือ runway ไม่ได้ เพราะไม่มียอดเงินตั้งต้นที่ยืนยันได้ กรุณาระบุยอดเงินปัจจุบันก่อนวิเคราะห์สภาพคล่องค่ะ"
+            return "The system recorded the transaction amounts, but cannot calculate ending cash balance or runway without a verified initial balance. Please provide your current cash balance first."
         if has_loans:
-            return "ระบบคัดเลือกสินเชื่อไว้แล้วค่ะ กรุณาใช้เมนู Find financing เพื่อดูรายละเอียดและเงื่อนไขของแต่ละผลิตภัณฑ์นะคะ"
+            return "We have matched suitable financing products for your business. Please check the Find financing section for detailed eligibility and application terms."
         if has_new_expense:
-            return f"ยอดค่าใช้จ่าย {expense:,.2f} บาท จะทำให้เงินสดสำรองคงเหลือ {cash_res.get('projected_cash', 0):,.2f} บาทค่ะ"
-        return f"สวัสดีค่ะ ยินดีดูแลบัญชีและการเงินให้กับ {profile['business_name']} นะคะ"
+            return f"Expense of {expense:,.2f} THB brings projected cash reserve to {cash_res.get('projected_cash', 0):,.2f} THB."
+        return f"Hello! Happy to assist with accounting and financial planning for {profile['business_name']}."
 
     async def process_session(
         self,
@@ -441,8 +452,11 @@ class MasterOrchestrator:
 
         # Classify monetary direction from text when no image is present
         if raw_amt > 0:
-            income_keywords = ["ลูกค้าโอน", "เงินเข้า", "รายรับ", "ขายของได้", "ได้รับเงิน", "ยอดขาย", "รายได้", "รับเงิน", "ได้เงิน", "โอนมาให้"]
-            if any(k in combined_text for k in income_keywords):
+            income_keywords = [
+                "ลูกค้าโอน", "เงินเข้า", "รายรับ", "ขายของได้", "ได้รับเงิน", "ยอดขาย", "รายได้", "รับเงิน", "ได้เงิน", "โอนมาให้",
+                "income", "inflow", "sales", "revenue", "received", "deposit", "transfer", "customer payment"
+            ]
+            if any(k in combined_text.lower() for k in income_keywords):
                 income = raw_amt
                 flow_type = "INFLOW"
             else:
@@ -524,7 +538,12 @@ class MasterOrchestrator:
                 node_status=NodeStatus.SUCCESS,
                 active_wire="CASHFLOW_TO_ORCHESTRATOR",
                 thought_log="Cashflow simulation completed. Review the result in the response.",
-                live_metrics=LiveMetrics(risk_level=cash_res["risk_level"]),
+                live_metrics=LiveMetrics(
+                    risk_level=cash_res["risk_level"],
+                    current_cash=cash_res.get("current_cash"),
+                    projected_cash=cash_res.get("projected_cash"),
+                    runway_days=cash_res.get("runway_days")
+                ),
             ))
 
             # Step 5: Invariant Math Guard
